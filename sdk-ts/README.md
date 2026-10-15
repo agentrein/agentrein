@@ -1,0 +1,195 @@
+<div align="center">
+      
+# AgentRein SDK
+
+The safety net for AI agents. Automatic rollback, approval gates, and intent verification.
+
+[![License](https://img.shields.io/badge/license-MIT-blue.svg?style=for-the-badge)](LICENSE)
+[![npm](https://img.shields.io/npm/v/agentrein?style=for-the-badge&logo=npm&color=CB3837&logoColor=white)](https://www.npmjs.com/package/agentrein)
+
+</div>
+
+
+## Installation
+
+```bash
+npm install agentrein
+```
+
+## Quick Start
+
+```ts
+import { AgentRein } from 'agentrein'
+
+const agentrein = new AgentRein({ apiKey: process.env.AGENTREIN_API_KEY })
+
+const session = await agentrein.newSession({
+    agentId: 'billing-agent',
+    intent: 'Send Q4 invoices to all customers',
+})
+
+const agentStripe = agentrein.wrap(stripe, session, { connector: 'stripe' })
+
+await agentStripe.invoices.create({ customer: 'cus_123', amount: 5000 })
+// If anything fails → automatic LIFO rollback
+// High-risk methods: use requiresApproval
+```
+
+## Core Concepts
+
+| Concept | Description |
+|---|---|
+| **Sessions** | One agent workflow. All actions are grouped under a single session so rollback can undo them as a unit. |
+| **Actions** | Every action intercepted by `wrap()` is logged with the full payload and response, creating a complete audit trail. |
+| **Rollback** | On any failure, AgentRein triggers a LIFO (last-in-first-out) undo of every action in the session. |
+| **Approval Gate** | Flag high-risk method paths with `requiresApproval` to block execution until a human approves from the dashboard. |
+| **Fail-Open** | If the AgentRein server is unreachable, your agent continues normally by default — safety never blocks production. |
+
+## API Reference
+
+### `new AgentRein(options)`
+
+Create a new AgentRein client instance.
+
+| Option | Type | Default | Required | Description |
+|---|---|---|---|---|
+| `apiKey` | `string` | — | yes | Organization API key |
+| `serverUrl` | `string` | `https://api.agentrein.com` | no | Custom server URL |
+| `failureMode` | `'open' \| 'closed'` | `'open'` | no | Behavior when server is unreachable |
+
+```typescript
+const agentrein = new AgentRein({
+  apiKey: 'ak_live_...',
+  serverUrl: 'https://api.agentrein.com',
+  failureMode: 'open',
+})
+```
+
+---
+
+### `agentrein.newSession(options?)`
+
+Create a new agent session.
+
+```typescript
+// With full options (recommended)
+const session = await agentrein.newSession({
+  agentId: 'billing-agent',
+  intent: 'Send Q4 invoices to all customers',
+})
+
+// String shorthand (agentId only)
+const session = await agentrein.newSession('billing-agent')
+
+// No args — auto-generated agentId
+const session = await agentrein.newSession()
+```
+
+**Returns:** `Session` object with `id`, `organizationId`, `agentId`, `intent`, `status`, `createdAt`, `updatedAt`.
+
+### `agentrein.wrap(client, session, options)`
+
+Wrap a standard SDK client to enable automatic logging, interception, and rollbacks.
+
+```typescript
+const agentStripe = agentrein.wrap(stripe, session, { 
+  connector: 'stripe',
+  requiresApproval: ['subscriptions.cancel', 'invoices.del']
+})
+```
+
+#### `WrapOptions`
+
+| Option | Type | Required | Description |
+|---|---|---|---|
+| `connector` | `string` | Yes | Connector prefix e.g. `'stripe'`, `'github'` |
+| `requiresApproval` | `string[]` | No | Method paths requiring human approval |
+| `retryable` | `string[]` | No | Method paths to retry after transient connector failures |
+| `pollIntervalMs` | `number` | No | Approval poll interval (default: 2000ms) |
+| `timeoutMs` | `number` | No | Approval timeout (default: 24h) |
+---
+
+### `agentrein.resumeSession(sessionId)` / `agentrein.getSession(sessionId)`
+
+Both are aliases — return a `Session` object.
+
+```typescript
+const session = await agentrein.resumeSession('sess_abc123')
+// or
+const session = await agentrein.getSession('sess_abc123')
+```
+
+---
+
+### `agentrein.completeSession(session: Session): Promise<void>`
+
+Marks the session as `COMPLETED`. This locks the session and prevents further actions from being added.
+
+```typescript
+await agentrein.completeSession(session)
+```
+
+## Approval Gate
+
+Flag method paths with `requiresApproval` to require human sign-off before execution.
+
+**Flow:**
+
+1. `wrap()` intercepts the call and logs the action as `PENDING_APPROVAL`
+2. SDK polls `GET /approvals/:id` at the configured interval
+3. A reviewer approves or rejects from the AgentRein dashboard
+4. **Approved** → wrapped method executes → action updated to `SUCCESS`
+5. **Rejected** → `ApprovalRejectedError` thrown → session rollback triggered
+
+**Error handling:**
+
+```ts
+const agentStripe = agentrein.wrap(stripe, session, {
+    connector: 'stripe',
+    requiresApproval: ['subscriptions.cancel'],
+})
+
+try {
+    await agentStripe.subscriptions.cancel({ id: 'sub_123' })
+} catch (err) {
+    if (err instanceof ApprovalRejectedError) {
+        console.log('Rejected:', err.reason)
+    }
+}
+```
+
+## Error Reference
+
+| Error | When Thrown |
+|---|---|
+| `AgentReinUnavailableError` | Server unreachable during `newSession()` or token fetch |
+| `ApprovalRejectedError` | Reviewer rejected the action via dashboard. Has `.reason` property |
+
+## Fail Modes
+
+| Mode | Behavior | When to Use |
+|---|---|---|
+| `'open'` (default) | If server is down, intercepted calls execute unprotected | Most use cases |
+| `'closed'` | If server is down, intercepted calls may throw `AgentReinUnavailableError` (during session/token init) | Finance, healthcare |
+
+## Supported Connectors
+
+Built-in undo strategies for popular services:
+
+| Connector | Actions | Undo Strategy |
+|---|---|---|
+| **Stripe** | `stripe.invoices.create`, `stripe.customers.create` | Direct delete |
+| **Slack** | `slack.chat.postMessage` | Correction message in thread |
+| **GitHub** | `github.issues.create` | Close issue |
+| **HubSpot** | `hubspot.contacts.create/update`, `hubspot.deals.create/update` | Delete / restore `beforeState` |
+| **Salesforce** | `salesforce.contacts.create/update`, `salesforce.opportunities.create/update` | Delete / restore `beforeState` |
+| **Notion** | `notion.pages.create/update`, `notion.database_items.create`, `notion.blocks.append` | Archive / restore / delete blocks |
+| **Gmail** | `gmail.messages.send/trash`, `gmail.drafts.create`, `gmail.labels.modify` | Correction reply / untrash / delete / reverse labels |
+| **Google Drive** | `gdrive.files.create/update/move/trash` | Delete / restore / reverse move / untrash |
+| **Google Sheets** | `gsheets.values.append/update`, `gsheets.spreadsheets.create`, `gsheets.sheets.add` | Clear / restore / delete |
+
+## Links
+
+- [Documentation](https://agentrein.com/docs)
+- [Dashboard](https://agentrein.com/dashboard)
+- [GitHub](https://github.com/agentrein/sdk)
