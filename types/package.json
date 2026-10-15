@@ -1,0 +1,25 @@
+{
+  "name": "@agentrein/types",
+  "version": "1.0.0",
+  "description": "TypeScript types for AgentRein connectors",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": [
+    "agentrein",
+    "types",
+    "rollback",
+    "ai-agents",
+    "connectors"
+  ],
+  "license": "MIT",
+  "devDependencies": {
+    "typescript": "^5.9.3"
+  }
+}
