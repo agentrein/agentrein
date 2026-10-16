@@ -1,0 +1,12 @@
+{
+  "name": "agentrein-core",
+  "private": true,
+  "workspaces": [
+    "sdk-ts",
+    "types",
+    "connectors"
+  ],
+  "devDependencies": {
+    "typescript": "^5.9.3"
+  }
+}

@@ -1,0 +1,46 @@
+name: Publish TypeScript SDK
+
+on:
+  push:
+    tags:
+      - "sdk-ts-v*"
+
+jobs:
+  publish:
+    name: Publish SDK to npm
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Copy root LICENSE to sdk-ts
+        run: cp LICENSE sdk-ts/LICENSE
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          registry-url: 'https://registry.npmjs.org'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build sdk-ts
+        run: npm run build --workspace agentrein
+
+      - name: Verify tag version matches package.json
+        run: |
+          TAG_VERSION="${GITHUB_REF_NAME#sdk-ts-v}"
+          PKG_VERSION=$(node -p "require('./sdk-ts/package.json').version")
+          if [ "$TAG_VERSION" != "$PKG_VERSION" ]; then
+            echo "Error: Tag version ($TAG_VERSION) does not match package.json version ($PKG_VERSION)" >&2
+            exit 1
+          fi
+
+          echo "Tag version ($TAG_VERSION) matches package.json version ($PKG_VERSION)"
+
+      - name: Publish to npm
+        run: npm publish --workspace agentrein
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

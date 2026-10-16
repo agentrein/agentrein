@@ -2,8 +2,8 @@
 
 > Wrap your AI agents. Undo anything.
 
-[![Build Status](https://img.shields.io/github/actions/workflow/status/agentrein/agentrein-connectors/sync-connectors.yml?branch=main)](https://github.com/agentrein/agentrein-connectors/actions)
-[![License](https://img.shields.io/github/license/agentrein/agentrein-connectors)](LICENSE)
+[![Build Status](https://img.shields.io/github/actions/workflow/status/agentrein/agentrein-core/sync-connectors.yml?branch=main)](https://github.com/agentrein/agentrein-core/actions)
+[![License](https://img.shields.io/github/license/agentrein/agentrein-core)](../LICENSE)
 
 ## What is this?
 
@@ -18,11 +18,11 @@ All changes merged into this repository are automatically propagated to the main
 | Connector | Actions | Notes |
 |---|---|---|
 | github | 20 | Pilot connector; established the base template |
-| slack | 23 | Largest initial connector prior to Salesforce |
+| slack | 24 | Largest initial connector prior to Salesforce |
 | gmail | 16 | Covers message, draft, thread, and label operations |
 | gdrive | 10 | Manages file lifecycle, permissions, and folder mappings |
 | gsheets | 8 | Smallest connector—row/column positions lack stable identifiers |
-| hubspot | 13 | Covers primary CRM primitives (Contacts, Deals, Companies, Tickets) |
+| hubspot | 17 | Covers primary CRM primitives (Contacts, Deals, Companies, Tickets) |
 | notion | 9 | Manages pages, database items, and block structures |
 | salesforce | 28 | Largest connector to date; supports dynamic SObjects |
 | stripe | 10 | Final connector of the initial platform expansion |

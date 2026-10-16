@@ -4,7 +4,7 @@
 
 The safety net for AI agents. Automatic rollback, approval gates, and intent verification.
 
-[![License](https://img.shields.io/badge/license-MIT-blue.svg?style=for-the-badge)](LICENSE)
+[![License](https://img.shields.io/badge/license-MIT-blue.svg?style=for-the-badge)](../LICENSE)
 [![npm](https://img.shields.io/npm/v/agentrein?style=for-the-badge&logo=npm&color=CB3837&logoColor=white)](https://www.npmjs.com/package/agentrein)
 
 </div>
@@ -192,4 +192,4 @@ Built-in undo strategies for popular services:
 
 - [Documentation](https://agentrein.com/docs)
 - [Dashboard](https://agentrein.com/dashboard)
-- [GitHub](https://github.com/agentrein/sdk)
+- [GitHub](https://github.com/agentrein/agentrein-core/tree/main/sdk-ts)

@@ -48,5 +48,5 @@ export const myConnector: Connector = {
 
 ## Links
 - [AgentRein](https://agentrein.com)
-- [Connectors Repo](https://github.com/AgentReinAI/agentrein-connectors)
+- [Connectors Repo](https://github.com/agentrein/agentrein-core/tree/main/connectors)
 - [Docs](https://agentrein.com/docs)
