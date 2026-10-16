@@ -1,6 +1,6 @@
-# Contributing to AgentRein Core
+# Contributing to AgentRein
 
-Thank you for your interest in contributing to AgentRein Core! This repository houses the core open-source components of the AgentRein reliability platform.
+Thank you for your interest in contributing to AgentRein! This repository houses the core open-source components of the AgentRein reliability platform.
 
 ## Repository Layout
 

@@ -1,6 +1,6 @@
 # Contributing to AgentRein Connectors
 
-Thank you for contributing to `agentrein-core` (folder `connectors/`). This repository contains the canonical connector definitions used by the AgentRein execution engine to audit, gate, and roll back AI agent tool calls.
+Thank you for contributing to `agentrein` (folder `connectors/`). This repository contains the canonical connector definitions used by the AgentRein execution engine to audit, gate, and roll back AI agent tool calls.
 
 ---
 
@@ -8,7 +8,7 @@ Thank you for contributing to `agentrein-core` (folder `connectors/`). This repo
 
 This repository is the single source of truth for all connector code.
 
-- **Sync Policy**: Code changes must **only** be made inside this repository (`agentrein-core`, folder `connectors/`).
+- **Sync Policy**: Code changes must **only** be made inside this repository (`agentrein`, folder `connectors/`).
 - **Read-Only Mirror**: The backend path `backend/src/core/registry/connectors/` is a read-only mirror maintained by `.github/workflows/sync-connectors.yml` at the repo root.
 - **Direct Edits Forbidden**: Direct modifications to the backend copy will cause repository drift and will be overwritten by the next automated sync workflow.
 

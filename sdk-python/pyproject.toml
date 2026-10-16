@@ -35,7 +35,7 @@ dev = [
 
 [project.urls]
 Homepage = "https://agentrein.com"
-Repository = "https://github.com/agentrein/agentrein-core"
+Repository = "https://github.com/agentrein/agentrein"
 
 [tool.mypy]
 strict = true

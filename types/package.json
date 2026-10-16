@@ -13,7 +13,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/agentrein/agentrein-core.git",
+    "url": "git+https://github.com/agentrein/agentrein.git",
     "directory": "types"
   },
   "keywords": [

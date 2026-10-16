@@ -192,4 +192,4 @@ Built-in undo strategies for popular services:
 
 - [Documentation](https://agentrein.com/docs)
 - [Dashboard](https://agentrein.com/dashboard)
-- [GitHub](https://github.com/agentrein/agentrein-core/tree/main/sdk-ts)
+- [GitHub](https://github.com/agentrein/agentrein/tree/main/sdk-ts)

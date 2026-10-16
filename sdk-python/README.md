@@ -11,4 +11,4 @@ pip install agentrein
 ## Documentation & Links
 
 - **Website**: [agentrein.com](https://agentrein.com)
-- **Repository**: [GitHub](https://github.com/agentrein/agentrein-core/tree/main/sdk-python)
+- **Repository**: [GitHub](https://github.com/agentrein/agentrein/tree/main/sdk-python)

@@ -1,10 +1,10 @@
-# AgentRein Core
+# AgentRein
 
 > Deploy AI agents. Undo anything.
 
 AgentRein is an AI agent reliability platform: wrap existing AI agents with automatic rollback, human approval gates, intent drift detection, and unified audit logs across external tools.
 
-This repository (`agentrein-core`) contains the core open-source components of AgentRein: the TypeScript and Python SDKs, canonical type definitions, and reversible action connectors.
+This repository (`agentrein`) contains the core open-source components of AgentRein: the TypeScript and Python SDKs, canonical type definitions, and reversible action connectors.
 
 ## Installation
 

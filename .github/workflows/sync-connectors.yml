@@ -54,7 +54,7 @@ jobs:
             This PR was automatically created by the public connector repo.
 
             **Source commit:** ${{ github.sha }}
-            **Source repo:** agentrein/agentrein-core
+            **Source repo:** agentrein/agentrein
 
             ### Changed files:
             - `src/core/registry/connectors/`
