@@ -1,6 +1,6 @@
 {
   "name": "@agentrein/types",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "TypeScript types for AgentRein connectors",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -10,6 +10,11 @@
   "scripts": {
     "build": "tsc",
     "prepublishOnly": "npm run build"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/agentrein/agentrein-core.git",
+    "directory": "types"
   },
   "keywords": [
     "agentrein",
