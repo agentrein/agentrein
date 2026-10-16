@@ -2,8 +2,8 @@
 
 > Wrap your AI agents. Undo anything.
 
-[![Build Status](https://img.shields.io/github/actions/workflow/status/agentrein/agentrein-connectors/sync-connectors.yml?branch=main)](https://github.com/agentrein/agentrein-connectors/actions)
-[![License](https://img.shields.io/github/license/agentrein/agentrein-connectors)](LICENSE)
+[![Build Status](https://img.shields.io/github/actions/workflow/status/agentrein/agentrein-core/sync-connectors.yml?branch=main)](https://github.com/agentrein/agentrein-core/actions)
+[![License](https://img.shields.io/github/license/agentrein/agentrein-core)](../LICENSE)
 
 ## What is this?
 
