@@ -1,4 +1,4 @@
-# This workflow only runs on version tags (v*), uses PyPI Trusted Publishing
+# This workflow only runs on version tags (sdk-python-v*), uses PyPI Trusted Publishing
 # (OIDC-based, requiring no stored credentials or API tokens), and expects
 # the "pypi" GitHub environment to already exist in the repository settings.
 
@@ -7,12 +7,15 @@ name: Publish Python Package
 on:
   push:
     tags:
-      - "v*"
+      - "sdk-python-v*"
 
 jobs:
   build:
     name: Build Package
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: sdk-python
 
     steps:
       - name: Checkout repository
@@ -35,7 +38,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: python-package-distributions
-          path: dist/
+          path: sdk-python/dist/
 
   publish-pypi:
     name: Publish to PyPI

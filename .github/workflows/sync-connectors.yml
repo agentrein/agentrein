@@ -8,8 +8,9 @@ on:
     branches:
       - main
     paths:
-      - 'connectors/**'
-      - 'types/**'
+      - 'connectors/connectors/**'
+      - 'connectors/types/**'
+      - 'types/src/**'
 
 jobs:
   sync:
@@ -35,8 +36,8 @@ jobs:
       - name: Copy connectors to private backend
         run: |
           mkdir -p private-repo/src/core/registry/connectors/
-          cp -r public-repo/connectors/* private-repo/src/core/registry/connectors/
-          cp public-repo/types/index.ts private-repo/src/core/registry/types.ts
+          cp -r public-repo/connectors/connectors/* private-repo/src/core/registry/connectors/
+          cp public-repo/types/src/index.ts private-repo/src/core/registry/types.ts
 
       - name: Create Pull Request on private backend
         uses: peter-evans/create-pull-request@v6
@@ -52,7 +53,7 @@ jobs:
             This PR was automatically created by the public connector repo.
 
             **Source commit:** ${{ github.sha }}
-            **Source repo:** agentrein/agentrein-connectors
+            **Source repo:** agentrein/agentrein-core
 
             ### Changed files:
             - `src/core/registry/connectors/`

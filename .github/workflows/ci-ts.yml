@@ -1,0 +1,66 @@
+name: CI TypeScript
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'sdk-ts/**'
+      - 'types/**'
+      - 'connectors/**'
+      - 'scripts/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - '.github/workflows/ci-ts.yml'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'sdk-ts/**'
+      - 'types/**'
+      - 'connectors/**'
+      - 'scripts/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - '.github/workflows/ci-ts.yml'
+
+jobs:
+  check-ts:
+    name: Typecheck & Build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Check types mirror
+        run: bash scripts/check-types-mirror.sh
+
+      - name: TypeScript version
+        run: npx tsc --version
+
+      - name: Build types package
+        run: npm run build --workspace types
+
+      - name: Typecheck sdk-ts
+        run: npx tsc --noEmit
+        working-directory: sdk-ts
+
+      - name: Typecheck types
+        run: npx tsc --noEmit
+        working-directory: types
+
+      - name: Typecheck connectors
+        run: npx tsc --noEmit
+        working-directory: connectors
+
+      - name: Build sdk-ts
+        run: npm run build --workspace agentrein
