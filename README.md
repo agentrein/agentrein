@@ -29,18 +29,18 @@ npm install @agentrein/types
 
 ## Connectors
 
-The [`connectors/`](connectors/) directory provides **9 connectors / 223 reversible actions**.
+The [`connectors/`](connectors/) directory provides **9 connectors / 142 reversible actions**.
 
 Connectors define standard action contracts, resource URL resolvers, pre-execution snapshot rules, and inverse compensation handlers across third-party APIs:
 
-- **GitHub** (30 actions)
-- **Slack** (32 actions)
-- **Gmail** (21 actions)
-- **Google Drive** (19 actions)
-- **Google Sheets** (11 actions)
-- **HubSpot** (29 actions)
-- **Notion** (16 actions)
-- **Salesforce** (55 actions)
+- **GitHub** (20 actions)
+- **Slack** (24 actions)
+- **Gmail** (16 actions)
+- **Google Drive** (10 actions)
+- **Google Sheets** (8 actions)
+- **HubSpot** (17 actions)
+- **Notion** (9 actions)
+- **Salesforce** (28 actions)
 - **Stripe** (10 actions)
 
 Connectors are open for community contributions and are not published as an npm package. Changes to connectors are automatically validated and synchronized with the platform registry.
