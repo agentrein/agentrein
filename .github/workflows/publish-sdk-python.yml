@@ -21,6 +21,10 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Copy root LICENSE to sdk-python
+        run: cp LICENSE sdk-python/LICENSE
+        working-directory: .
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
