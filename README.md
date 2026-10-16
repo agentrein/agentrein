@@ -43,7 +43,7 @@ Connectors define standard action contracts, resource URL resolvers, pre-executi
 - **Salesforce** (28 actions)
 - **Stripe** (10 actions)
 
-Connectors are open for community contributions and are not published as an npm package. Changes to connectors are automatically validated and synchronized with the platform registry.
+Connectors are open for community contributions and are not published as an npm package. Changes to connectors are type-checked in CI and proposed to the platform registry through an automated pull request that a maintainer reviews.
 
 ## Contributing
 
