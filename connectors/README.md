@@ -2,8 +2,9 @@
 
 # AgentRein Connectors
 
-**Production-ready, reversible-action connectors for AI agent tool calls.**  
-9 Connectors • 142 Reversible Actions • Canonical Single Source of Truth.
+### Automatic rollback for AI agents.
+
+*AI agents can act. They shouldn't be irreversible.*
 
 [![Actions Count](https://img.shields.io/badge/Actions-142%20Reversible-brightgreen.svg?style=flat-square)](https://github.com/agentrein/agentrein/tree/main/connectors)
 [![Connectors Count](https://img.shields.io/badge/Connectors-9%20Platforms-blue.svg?style=flat-square)](https://github.com/agentrein/agentrein/tree/main/connectors)
@@ -18,13 +19,14 @@
 
 ## Overview
 
-When autonomous AI agents interact with external platforms (GitHub, Slack, Salesforce, HubSpot, Stripe, Google Workspace), any runtime error, prompt drift, or unexpected model output can cause unintended external mutations.
+When autonomous AI agents make tool calls across external services, unexpected errors or model hallucinations can leave third-party systems corrupted.
 
-**AgentRein Connectors** provide the canonical contracts and inverse compensation handlers that make these tool calls safe:
-1. **Pre-Execution Snapshots**: Automatically captures the previous state of modified resources (`beforeState`) before destructive operations execute.
-2. **Deterministic Rollback**: Each action defines an exact, idempotent compensation strategy (hard/soft delete, state restore, correction reply, or inverse toggle).
-3. **Safety Gates**: Classifies operations into risk tiers (`LOW`, `MEDIUM`, `HIGH`) to automatically enforce human sign-off when needed.
-4. **Audit Logging**: Resolves deterministic resource URLs for every action to provide an immutable, visual audit trail in the AgentRein dashboard.
+**AgentRein Connectors** provide the canonical contracts, snapshot rules, and inverse compensation handlers that make external tool execution safe across four protective layers:
+
+1. 🔄 **Automatic Rollback (`Made a mistake? Undo it.`)**: Unwinds tool calls in strict reverse order (LIFO) when a step fails.
+2. 🚦 **Approval Gates (`High-risk action? Stop and ask.`)**: Pauses high-risk operations for human sign-off before execution.
+3. 🎯 **Intent Drift Detection (`Agent drifting off course? Catch it.`)**: Validates action tags against declared session intent.
+4. 📋 **Unified Audit Trail (`Need to know what happened? See everything.`)**: Resolves deterministic resource URLs for every action to provide an immutable audit timeline.
 
 ---
 
@@ -57,32 +59,32 @@ This directory (`connectors/`) is the **single source of truth** for all connect
 
 ## Supported Connectors
 
-The repository currently provides **9 production connectors** spanning **142 reversible actions**:
+Works out of the box with the tools your agents already use across **9 platforms** and **142 reversible actions**:
 
-| Connector | Actions | Supported Primitives | Primary Rollback Strategy | File |
-| :--- | :---: | :--- | :--- | :--- |
-| **GitHub** | **20** | Issues, Issue Comments, Pull Requests, Reviews, Labels, Stars, Releases | Soft-delete, close, remove label/reaction, unstar | [`github.connector.ts`](./connectors/github.connector.ts) |
-| **Slack** | **24** | Messages, Threads, Reactions, Pins, Channel Topics, Canvas | Message deletion, thread correction replies, remove reaction | [`slack.connector.ts`](./connectors/slack.connector.ts) |
-| **Salesforce** | **28** | Contacts, Accounts, Leads, Opportunities, Tasks, Custom SObjects | Restore pre-execution SObject snapshot or soft-delete | [`salesforce.connector.ts`](./connectors/salesforce.connector.ts) |
-| **HubSpot** | **17** | Contacts, Companies, Deals, Tickets, Line Items, Engagements | Restore `beforeState` snapshot or soft-delete entity | [`hubspot.connector.ts`](./connectors/hubspot.connector.ts) |
-| **Gmail** | **16** | Messages, Drafts, Labels, Threads, Signatures | Move to trash, restore label mappings, thread correction reply | [`gmail.connector.ts`](./connectors/gmail.connector.ts) |
-| **Google Drive** | **10** | Files, Folders, Permissions, Revisions, Moves | Trash file, restore previous revision, revert permissions | [`gdrive.connector.ts`](./connectors/gdrive.connector.ts) |
-| **Stripe** | **10** | Customers, Invoices, Payment Links, Subscriptions, Refunds | Delete draft invoice, cancel customer/subscription | [`stripe.connector.ts`](./connectors/stripe.connector.ts) |
-| **Notion** | **9** | Pages, Database Items, Blocks, Comments | Archive page, delete blocks, restore properties | [`notion.connector.ts`](./connectors/notion.connector.ts) |
-| **Google Sheets**| **8** | Spreadsheets, Sheets, Rows, Cell Ranges | Clear inserted rows/columns, restore overwritten cell ranges | [`gsheets.connector.ts`](./connectors/gsheets.connector.ts) |
+| Connector | Actions | What AgentRein Does on Rollback | Implementation File |
+| :--- | :---: | :--- | :--- |
+| **Stripe** | **10** | Reverses charges & deletes invoices | [`stripe.connector.ts`](./connectors/stripe.connector.ts) |
+| **Slack** | **24** | Unsends messages & deletes posts | [`slack.connector.ts`](./connectors/slack.connector.ts) |
+| **GitHub** | **20** | Closes issues & reverts commits | [`github.connector.ts`](./connectors/github.connector.ts) |
+| **HubSpot** | **17** | Restores contacts & deals | [`hubspot.connector.ts`](./connectors/hubspot.connector.ts) |
+| **Salesforce** | **28** | Rolls back records & opportunities | [`salesforce.connector.ts`](./connectors/salesforce.connector.ts) |
+| **Gmail** | **16** | Unsends drafts & deletes threads | [`gmail.connector.ts`](./connectors/gmail.connector.ts) |
+| **Google Drive** | **10** | Restores files & permissions | [`gdrive.connector.ts`](./connectors/gdrive.connector.ts) |
+| **Google Sheets**| **8** | Reverts cell edits & row changes | [`gsheets.connector.ts`](./connectors/gsheets.connector.ts) |
+| **Notion** | **9** | Deletes pages & restores blocks | [`notion.connector.ts`](./connectors/notion.connector.ts) |
 
 ---
 
 ## Action Classification System
 
-Every action definition follows a standardized **4-Group Classification System**:
+Every action definition adheres to a standardized **4-Group Classification System**:
 
 | Group | `operationType` | `captureBeforeState` | Rollback Mechanism | Identifier Source |
 | :--- | :---: | :---: | :--- | :--- |
-| **Group 1: Create** | `CREATE` | `false` | Inverse deletion or closure. | `action.response` (Resource ID returned by API). |
-| **Group 2: Update/Delete** | `UPDATE` \| `DELETE` | `true` | Restores snapshot state from `action.snapshot.beforeState`. | `action.payload` (Target entity ID) + snapshot. |
-| **Group 3: Toggle** | `UPDATE` | `false` | Self-sufficient inverse operation (lock ↔ unlock, archive ↔ unarchive). | Both directions must be independently verified. |
-| **Group 4: Non-Reversible** | Varies | `false` | Destructive or non-compensable actions. Sets `safetyLevel: 'HIGH'` and `type: 'NONE'`. | Requires explicit human approval before execution. |
+| **Group 1: Create** | `CREATE` | `false` | Inverse deletion or closure. | `action.response` (Returned resource ID). |
+| **Group 2: Update/Delete** | `UPDATE` \| `DELETE` | `true` | Restores snapshot state from `action.snapshot.beforeState`. | `action.payload` + snapshot. |
+| **Group 3: Toggle** | `UPDATE` | `false` | Self-sufficient inverse operation (lock ↔ unlock, archive ↔ unarchive). | Both directions independently verified. |
+| **Group 4: Non-Reversible** | Varies | `false` | Destructive or non-compensable actions. Sets `safetyLevel: 'HIGH'` and `type: 'NONE'`. | Requires approval before execution. |
 
 ---
 

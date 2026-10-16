@@ -2,31 +2,66 @@
 
 # AgentRein TypeScript SDK
 
-**Deploy AI agents. Undo anything.**  
-The reliability, rollback, and safety net for TypeScript AI agents.
+### Automatic rollback for AI agents.
+
+*AI agents can act. They shouldn't be irreversible.*
 
 [![npm version](https://img.shields.io/npm/v/agentrein.svg?style=flat-square&color=blue)](https://www.npmjs.com/package/agentrein)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.0+-3178C6.svg?style=flat-square&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square)](https://opensource.org/licenses/MIT)
 [![CI Status](https://img.shields.io/github/actions/workflow/status/agentrein/agentrein/ci-ts.yml?branch=main&style=flat-square&label=CI)](https://github.com/agentrein/agentrein/actions)
 
-[Website](https://agentrein.com) • [Documentation](https://agentrein.com/docs) • [Dashboard](https://agentrein.com/dashboard) • [Report Issue](https://github.com/agentrein/agentrein/issues)
+[Website](https://agentrein.com) • [Documentation](https://agentrein.com/docs) • [Quickstart Guide](https://agentrein.com/docs/quickstart) • [Dashboard](https://agentrein.com/dashboard) • [Report Issue](https://github.com/agentrein/agentrein/issues)
 
 </div>
 
 ---
 
-## Overview
+## The Problem
 
-When autonomous AI agents make tool calls—charging credit cards, updating CRM records, sending emails, or provisioning cloud resources—any runtime error, model hallucination, or network timeout can leave external systems corrupted.
+> **AI agents fail silently. And one small mistake can become a big one.**
+> - **Stripe:** Invoice generated with the wrong amount.
+> - **GitHub:** A record deleted in production.
+> - **Slack:** A message sent to the wrong customer.
+> 
+> *By the time you notice, it's already done. What if you could roll it back?*
 
-**AgentRein** acts as a safety and transaction proxy for your AI agents:
-- 🔄 **Automatic LIFO Rollback**: Undoes side effects in reverse order if an agent workflow fails.
-- 🚦 **Human-in-the-Loop Approval Gates**: Intercepts high-risk operations and holds execution until approved via dashboard or webhook.
-- 🔁 **Idempotent Retry Engine**: Automatically retries transient connector failures with exponential backoff.
-- 🧪 **Sandbox Simulation Mode**: Safely test agents against live workflows without mutating production state.
-- 🛡️ **Zero-Invasive Blind Proxy**: Wrap any existing TypeScript SDK client (Stripe, Octokit, HubSpot, Slack, etc.) without altering your business logic.
-- 🌐 **Fail-Open Resiliency**: Safe by default; mission-critical agent workflows are never blocked if the safety control plane is temporarily unreachable.
+**AgentRein** snapshots every action your AI agents take. When a step fails or goes off course, everything before it is rolled back automatically across every connector you use.
+
+---
+
+## One import. Full control.
+
+Add a safety net to the agent you already built. **No rewrite. No new infrastructure.**
+
+```typescript
+import { AgentRein } from 'agentrein';
+
+const agentrein = new AgentRein({ apiKey: process.env.AGENTREIN_API_KEY! });
+const session = await agentrein.newSession({ agentId: 'billing-agent', intent: 'Send Q4 invoices' });
+
+// Wrap your existing client
+const agentStripe = agentrein.wrap(stripe, session, { connector: 'stripe' });
+```
+
+---
+
+## Four Protective Layers
+
+AgentRein places four reliable guardrails between your autonomous agent and a bad outcome:
+
+```
+Action ──▶ Risk Assessment ──▶ Approval Gate ──▶ Rollback Engine ──▶ Restored
+```
+
+1. 🔄 **Automatic Rollback (`Made a mistake? Undo it.`)**  
+   Automatically reverse agent actions when things go wrong. AgentRein unwinds tool calls in strict reverse order (LIFO) with zero manual cleanup.
+2. 🚦 **Approval Gates (`High-risk action? Stop and ask.`)**  
+   Pause critical actions (like deleting records or charging cards) for human sign-off via the AgentRein dashboard before execution.
+3. 🎯 **Intent Drift Detection (`Agent drifting off course? Catch it.`)**  
+   Detect when an agent's individual actions move away from the intended session goal.
+4. 📋 **Unified Audit Trail (`Need to know what happened? See everything.`)**  
+   Immutable, searchable audit trails and execution timelines for every action taken by your agents.
 
 ---
 
@@ -34,12 +69,12 @@ When autonomous AI agents make tool calls—charging credit cards, updating CRM 
 
 - [Installation](#installation)
 - [Quick Start](#quick-start)
-- [Core Concepts](#core-concepts)
+- [Framework Compatibility](#framework-compatibility)
 - [Usage Guide](#usage-guide)
-  - [Human Approval Gates](#human-approval-gates)
-  - [Idempotent Retries](#idempotent-retries)
-  - [Sandbox Simulation](#sandbox-simulation)
-  - [Fail Modes (Open vs. Closed)](#fail-modes-open-vs-closed)
+  - [1. Automatic Rollback](#1-automatic-rollback)
+  - [2. Human Approval Gates](#2-human-approval-gates)
+  - [3. Idempotent Retries](#3-idempotent-retries)
+  - [4. Fail Modes (Open vs. Closed)](#4-fail-modes-open-vs-closed)
 - [API Reference](#api-reference)
 - [Error Handling](#error-handling)
 - [Supported Connectors](#supported-connectors)
@@ -66,7 +101,7 @@ yarn add agentrein
 bun add agentrein
 ```
 
-> **Note:** The SDK ships with dual CommonJS (CJS) and ECMAScript Modules (ESM) builds, fully typed with TypeScript declarations.
+> **Note:** Ships with dual CommonJS (CJS) and ECMAScript Modules (ESM) builds, fully typed.
 
 ---
 
@@ -76,44 +111,44 @@ bun add agentrein
 import { AgentRein, ApprovalRejectedError } from 'agentrein';
 import Stripe from 'stripe';
 
-// 1. Initialize the AgentRein client
+// 1. Initialize AgentRein
 const agentrein = new AgentRein({
   apiKey: process.env.AGENTREIN_API_KEY!,
-  serverUrl: 'https://api.agentrein.com', // optional, default
-  failureMode: 'open',                   // optional: 'open' | 'closed'
+  serverUrl: 'https://api.agentrein.com', // optional
+  failureMode: 'open',                   // 'open' (resilient) | 'closed' (strict)
 });
 
-// 2. Start a safety session for your agent's task
+// 2. Start a safety session with an explicit intent
 const session = await agentrein.newSession({
   agentId: 'billing-agent-01',
-  intent: 'Generate monthly invoices and handle customer refunds',
+  intent: 'Send Q4 invoices to active corporate clients',
 });
 
 try {
-  // 3. Initialize your standard 3rd-party client
+  // 3. Initialize your standard vendor client
   const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: '2023-10-16' });
 
-  // 4. Wrap the client with AgentRein protection
+  // 4. Wrap the client — no changes to underlying method calls
   const safeStripe = agentrein.wrap(stripe, session, {
     connector: 'stripe',
-    requiresApproval: ['invoices.del', 'subscriptions.cancel'], // Human sign-off required
-    retryable: ['charges.retrieve'],                            // Automatic backoff retry
+    requiresApproval: ['invoices.del', 'subscriptions.cancel'],
+    retryable: ['charges.retrieve'],
   });
 
-  // 5. Execute operations normally through the wrapped proxy
+  // 5. Agent executes operations
   const invoice = await safeStripe.invoices.create({
-    customer: 'cus_12345',
+    customer: 'cus_123',
     collection_method: 'send_invoice',
     days_until_due: 30,
   });
 
-  // 6. Complete the session when workflow finishes
+  // 6. Complete session to lock audit trail
   await agentrein.completeSession(session);
   console.log('Session completed successfully:', session.id);
 
 } catch (err) {
   if (err instanceof ApprovalRejectedError) {
-    console.error(`Action was rejected by reviewer: ${err.reason}`);
+    console.error(`Action rejected by dashboard reviewer: ${err.reason}`);
   } else {
     console.error('Workflow error encountered. Initiating rollback...', err);
   }
@@ -125,39 +160,54 @@ try {
 
 ---
 
-## Core Concepts
+## Framework Compatibility
 
-| Concept | Description |
-| :--- | :--- |
-| **`Session`** | The transactional boundary of an agent workflow. All actions intercepted during a session are indexed and rolled back together as a unified unit. |
-| **`wrap()`** | A dynamic proxy wrapper that intercepts method calls on any third-party SDK client, logging actions and enforcing configured safety policies. |
-| **LIFO Rollback** | Last-In-First-Out compensation: actions are rolled back in strict reverse order of execution using registered connector inverse handlers. |
-| **Approval Gates** | High-stakes actions configured in `requiresApproval` are queued as `PENDING_APPROVAL` until approved by a team member in the AgentRein dashboard. |
-| **Fail Modes** | Configurable resiliency: `failureMode: 'open'` (default) allows production agents to proceed if the control plane is offline; `failureMode: 'closed'` halts execution for regulated environments. |
+AgentRein integrates seamlessly with the TypeScript agent stack:
+
+- **Vercel AI SDK**
+- **LangChain & LangGraph (JS/TS)**
+- **Mastra**
+- **OpenAI & Anthropic SDKs**
+- **Custom Agent Loops & Workflows**
 
 ---
 
 ## Usage Guide
 
-### Human Approval Gates
+### 1. Automatic Rollback
 
-Flag sensitive method paths with `requiresApproval` to block execution until a human operator approves the action in the AgentRein dashboard:
+If an agent crashes after executing multiple mutations, `rollbackSession(session)` unwinds operations in reverse order:
+
+```typescript
+try {
+  await safeGithub.issues.create({ ... });
+  await safeSlack.chat.postMessage({ ... });
+  throw new Error("Model hallucinated invalid parameters");
+} catch (error) {
+  // Unwinds Slack message, then closes GitHub issue
+  await agentrein.rollbackSession(session);
+}
+```
+
+### 2. Human Approval Gates
+
+Flag sensitive method paths with `requiresApproval` to hold execution until approved from the AgentRein dashboard:
 
 ```typescript
 const safeGitHub = agentrein.wrap(octokit, session, {
   connector: 'github',
   requiresApproval: ['repos.delete', 'issues.delete'],
-  pollIntervalMs: 2500, // Check approval status every 2.5s (default: 2000ms)
-  timeoutMs: 300_000,   // Wait up to 5 minutes before timing out (default: 24h)
+  pollIntervalMs: 2000,
+  timeoutMs: 300_000, // 5-minute timeout
 });
 
 // Execution pauses here until approved in the dashboard
-await safeGitHub.repos.delete({ owner: 'acme-corp', repo: 'sensitive-repo' });
+await safeGitHub.repos.delete({ owner: 'acme-corp', repo: 'critical-repo' });
 ```
 
-### Idempotent Retries
+### 3. Idempotent Retries
 
-Handle transient HTTP timeouts and 429 rate-limit responses automatically with exponential backoff:
+Handle transient timeouts and 429 rate limits automatically with exponential backoff:
 
 ```typescript
 const safeSlack = agentrein.wrap(slackClient, session, {
@@ -166,27 +216,10 @@ const safeSlack = agentrein.wrap(slackClient, session, {
 });
 ```
 
-### Sandbox Simulation
+### 4. Fail Modes (Open vs. Closed)
 
-In sandbox sessions, destructive or live operations simulate responses using the backend schema mock engine without touching downstream production systems:
-
-```typescript
-// If session.isSandbox is true:
-const simulatedResult = await safeClient.charges.create({ ... });
-// Action is audited, but real charge is not processed
-```
-
-### Fail Modes (Open vs. Closed)
-
-```typescript
-// Default: Fail-Open (Recommended for web services and autonomous agents)
-// Intercepted calls continue unprotected if AgentRein is unreachable.
-const agentrein = new AgentRein({ apiKey: '...', failureMode: 'open' });
-
-// Fail-Closed (Recommended for banking, healthcare, and high-compliance workloads)
-// Intercepted calls fail fast with AgentReinUnavailableError if control plane is down.
-const agentrein = new AgentRein({ apiKey: '...', failureMode: 'closed' });
-```
+- **`failureMode: 'open'` (Default)**: If AgentRein servers are unreachable, calls proceed directly to vendor APIs to ensure uptime.
+- **`failureMode: 'closed'`**: High-compliance mode. Intercepted calls fail fast with `AgentReinUnavailableError` if the safety plane cannot be reached.
 
 ---
 
@@ -197,53 +230,29 @@ const agentrein = new AgentRein({ apiKey: '...', failureMode: 'closed' });
 ```typescript
 interface AgentReinOptions {
   apiKey: string;
-  serverUrl?: string;          // Default: "https://api.agentrein.com"
+  serverUrl?: string;              // Default: "https://api.agentrein.com"
   failureMode?: 'open' | 'closed'; // Default: 'open'
 }
 ```
 
-### Methods
+### Core Methods
 
-#### `agentrein.newSession(options?: SessionOptions | string): Promise<Session>`
-Creates a new tracked safety session. Accepts either an options object or a string `agentId`.
-
-```typescript
-const session = await agentrein.newSession({
-  agentId: 'support-agent',
-  intent: 'Update customer address and forward ticket',
-});
-```
-
-#### `agentrein.wrap<T>(client: T, session: Session, options: WrapOptions): T`
-Wraps any SDK client with the safety proxy.
-
-```typescript
-interface WrapOptions {
-  connector: string;
-  requiresApproval?: string[];
-  retryable?: string[];
-  pollIntervalMs?: number; // Minimum 1000ms
-  timeoutMs?: number;      // Minimum 5000ms
-}
-```
-
-#### `agentrein.resumeSession(sessionId: string): Promise<Session>`
-Retrieves an existing session by ID (alias: `getSession`).
-
-#### `agentrein.completeSession(session: Session): Promise<void>`
-Marks the session as `COMPLETED`. Locks the session and prevents further mutations.
-
-#### `agentrein.rollbackSession(session: Session): Promise<void>`
-Triggers server-side LIFO compensation for all recorded actions in the session.
-
-#### `agentrein.validateConfig(connectors: string[]): Promise<Record<string, unknown>>`
-Verifies API credentials and connectivity for a list of connector names.
+- **`agentrein.newSession(options?: SessionOptions | string): Promise<Session>`**  
+  Starts a safety session with an optional agent ID and task intent.
+- **`agentrein.wrap<T>(client: T, session: Session, options: WrapOptions): T`**  
+  Wraps any third-party SDK client with the transparent safety proxy.
+- **`agentrein.resumeSession(sessionId: string): Promise<Session>`**  
+  Retrieves an active session by its ID (alias: `getSession`).
+- **`agentrein.completeSession(session: Session): Promise<void>`**  
+  Marks the session as `COMPLETED`. Locks the execution timeline.
+- **`agentrein.rollbackSession(session: Session): Promise<void>`**  
+  Triggers server-side LIFO compensation for all recorded actions in the session.
+- **`agentrein.validateConfig(connectors: string[]): Promise<Record<string, unknown>>`**  
+  Verifies API credentials and connector health.
 
 ---
 
 ## Error Handling
-
-All custom errors extend standard `Error` and contain actionable metadata:
 
 ```typescript
 import {
@@ -251,7 +260,6 @@ import {
   ApprovalRejectedError,
   ApprovalTimeoutError,
   ConfigValidationError,
-  WrapOptionsValidationError,
 } from 'agentrein';
 
 try {
@@ -271,26 +279,28 @@ try {
 
 ## Supported Connectors
 
-| Connector | Supported Actions | Primary Rollback Strategy |
-| :--- | :--- | :--- |
-| **GitHub** | 20 actions (Issues, PRs, Comments, Labels, Stars) | Soft-delete, close, or revert state |
-| **Slack** | 24 actions (Messages, Threads, Reactions, Pins) | Delete message, correction reply, remove reaction |
-| **Stripe** | 10 actions (Customers, Invoices, Refunds, Subscriptions) | Delete customer/draft, cancel subscription |
-| **HubSpot** | 17 actions (Contacts, Deals, Companies, Tickets) | Restore `beforeState` snapshot or soft-delete |
-| **Salesforce** | 28 actions (Contacts, Accounts, Leads, Opportunities) | Restore pre-execution SObject snapshot |
-| **Gmail** | 16 actions (Messages, Drafts, Labels, Threads) | Move to trash, correction reply, restore labels |
-| **Google Drive** | 10 actions (Files, Folders, Permissions) | Trash, restore version, undo move/permissions |
-| **Google Sheets**| 8 actions (Spreadsheets, Sheets, Rows, Cells) | Clear inserted rows, restore previous cell state |
-| **Notion** | 9 actions (Pages, Database Items, Blocks) | Archive page, delete block, restore properties |
+Works out of the box with the tools your agents already use:
+
+| Connector | Actions | What AgentRein Does on Rollback |
+| :--- | :---: | :--- |
+| **Stripe** | 10 | Reverses charges & deletes invoices |
+| **Slack** | 24 | Unsends messages & deletes posts |
+| **GitHub** | 20 | Closes issues & reverts commits |
+| **HubSpot** | 17 | Restores contacts & deals |
+| **Salesforce** | 28 | Rolls back records & opportunities |
+| **Gmail** | 16 | Unsends drafts & deletes threads |
+| **Google Drive** | 10 | Restores files & permissions |
+| **Google Sheets**| 8 | Reverts cell edits & row changes |
+| **Notion** | 9 | Deletes pages & restores blocks |
 
 ---
 
 ## Development & Testing
 
-When developing within the [AgentRein monorepo](https://github.com/agentrein/agentrein):
+When contributing from within the [AgentRein monorepo](https://github.com/agentrein/agentrein):
 
 ```bash
-# 1. Install monorepo dependencies from root
+# 1. Install dependencies from monorepo root
 npm ci
 
 # 2. Build types dependency

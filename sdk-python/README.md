@@ -2,31 +2,66 @@
 
 # AgentRein Python SDK
 
-**Deploy AI agents. Undo anything.**  
-The reliability and safety layer for Python AI agents.
+### Automatic rollback for AI agents.
+
+*AI agents can act. They shouldn't be irreversible.*
 
 [![PyPI version](https://img.shields.io/pypi/v/agentrein.svg?style=flat-square&color=blue)](https://pypi.org/project/agentrein/)
 [![Python Versions](https://img.shields.io/pypi/pyversions/agentrein.svg?style=flat-square)](https://pypi.org/project/agentrein/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square)](https://opensource.org/licenses/MIT)
 [![CI Status](https://img.shields.io/github/actions/workflow/status/agentrein/agentrein/ci-python.yml?branch=main&style=flat-square&label=CI)](https://github.com/agentrein/agentrein/actions)
 
-[Website](https://agentrein.com) • [Documentation](https://agentrein.com/docs) • [Dashboard](https://agentrein.com/dashboard) • [Report Issue](https://github.com/agentrein/agentrein/issues)
+[Website](https://agentrein.com) • [Documentation](https://agentrein.com/docs) • [Quickstart Guide](https://agentrein.com/docs/quickstart) • [Dashboard](https://agentrein.com/dashboard) • [Report Issue](https://github.com/agentrein/agentrein/issues)
 
 </div>
 
 ---
 
-## Overview
+## The Problem
 
-When autonomous AI agents make tool calls—charging credit cards, updating CRM records, sending emails, or provisioning infrastructure—any failure, model hallucination, or network timeout can leave external systems in an inconsistent state.
+> **AI agents fail silently. And one small mistake can become a big one.**
+> - **Stripe:** Invoice generated with the wrong amount.
+> - **GitHub:** A record or branch deleted in production.
+> - **Slack:** A message sent to the wrong customer.
+> 
+> *By the time you notice, it's already done. What if you could roll it back?*
 
-**AgentRein** acts as a safety and transaction proxy for your AI agents:
-- 🔄 **Automatic LIFO Rollback**: Undoes side effects in reverse order if an agent workflow fails.
-- 🚦 **Human-in-the-Loop Approval Gates**: Intercepts high-risk operations and holds execution until approved via dashboard or webhook.
-- 🔁 **Idempotent Retry Engine**: Automatically retries transient connector failures with exponential backoff.
-- 🧪 **Sandbox Simulation Mode**: Safely test agents against live workflows without mutating production state.
-- 🛡️ **Zero-Invasive Blind Proxy**: Wrap your existing Python SDK clients (Stripe, GitHub, HubSpot, Slack, etc.) without rewriting business logic.
-- 🌐 **Fail-Open by Default**: Agent execution is never blocked if the safety control plane is temporarily unreachable.
+**AgentRein** snapshots every action your AI agents take. When a step fails or goes off course, everything before it is rolled back automatically across every connector you use.
+
+---
+
+## One import. Full control.
+
+Add a safety net to the agent you already built. **No rewrite. No new infrastructure.**
+
+```python
+from agentrein import AgentRein
+
+rein = AgentRein(api_key="rein_api_key_...")
+session = rein.new_session(agent_id="billing-agent", intent="Process monthly customer invoice")
+
+# Wrap your existing SDK client
+safe_stripe = rein.wrap(stripe_client, session=session, connector="stripe")
+```
+
+---
+
+## Four Protective Layers
+
+AgentRein places four reliable guardrails between your autonomous agent and a bad outcome:
+
+```
+Action ──▶ Risk Assessment ──▶ Approval Gate ──▶ Rollback Engine ──▶ Restored
+```
+
+1. 🔄 **Automatic Rollback (`Made a mistake? Undo it.`)**  
+   Automatically reverse agent actions when things go wrong. AgentRein unwinds external tool calls in strict reverse order (LIFO) with zero manual cleanup.
+2. 🚦 **Approval Gates (`High-risk action? Stop and ask.`)**  
+   Pause critical actions (like deleting records or charging cards) for human sign-off via the AgentRein dashboard before execution.
+3. 🎯 **Intent Drift Detection (`Agent drifting off course? Catch it.`)**  
+   Continuous verification ensures an agent's individual tool calls remain aligned with the stated session `intent`.
+4. 📋 **Unified Audit Trail (`Need to know what happened? See everything.`)**  
+   Searchable, immutable execution timelines displaying full request payloads, responses, and deterministic resource URLs.
 
 ---
 
@@ -34,12 +69,12 @@ When autonomous AI agents make tool calls—charging credit cards, updating CRM 
 
 - [Installation](#installation)
 - [Quick Start](#quick-start)
-- [Core Concepts](#core-concepts)
+- [Framework Compatibility](#framework-compatibility)
 - [Usage Guide](#usage-guide)
-  - [Human Approval Gates](#human-approval-gates)
-  - [Idempotent Retries](#idempotent-retries)
-  - [Sandbox Simulation](#sandbox-simulation)
-  - [Fail Modes (Open vs. Closed)](#fail-modes-open-vs-closed)
+  - [1. Automatic Rollback](#1-automatic-rollback)
+  - [2. Human Approval Gates](#2-human-approval-gates)
+  - [3. Idempotent Retries](#3-idempotent-retries)
+  - [4. Fail Modes (Open vs. Closed)](#4-fail-modes-open-vs-closed)
 - [API Reference](#api-reference)
 - [Error Handling](#error-handling)
 - [Supported Connectors](#supported-connectors)
@@ -50,7 +85,7 @@ When autonomous AI agents make tool calls—charging credit cards, updating CRM 
 
 ## Installation
 
-Install via `pip`:
+Install using `pip`:
 
 ```bash
 pip install agentrein
@@ -77,69 +112,85 @@ import os
 import stripe
 from agentrein import AgentRein, ApprovalRejectedError
 
-# 1. Initialize the AgentRein client
+# 1. Initialize AgentRein
 rein = AgentRein(
     api_key=os.environ["AGENTREIN_API_KEY"],
-    server_url="https://api.agentrein.com",  # optional, default
-    failure_mode="open",                     # optional, "open" | "closed"
+    server_url="https://api.agentrein.com", # optional, default
+    failure_mode="open",                    # 'open' (resilient) | 'closed' (strict)
 )
 
-# 2. Start a safety session for your agent's task
+# 2. Start a safety session with an explicit intent
 session = rein.new_session(
-    agent_id="billing-assistant",
-    intent="Refund overcharged customer and update records",
+    agent_id="finance-agent-4",
+    intent="Create invoice and collect pending subscription fees",
 )
 
 try:
-    # 3. Initialize your standard 3rd-party client
+    # 3. Initialize your standard vendor client
     stripe_client = stripe.StripeClient(os.environ["STRIPE_API_KEY"])
 
-    # 4. Wrap the client with AgentRein protection
+    # 4. Wrap the client — no changes to underlying method calls
     safe_stripe = rein.wrap(
         stripe_client,
         session=session,
         connector="stripe",
-        requires_approval=["refunds.create"],  # pauses for human sign-off
-        retryable=["charges.retrieve"],        # automatic retry on network blips
+        requires_approval=["invoices.del", "subscriptions.cancel"],
+        retryable=["charges.retrieve"],
     )
 
-    # 5. Execute operations normally through the wrapped proxy
-    charge = safe_stripe.charges.retrieve("ch_3Mtw")
-    refund = safe_stripe.refunds.create(charge=charge.id, amount=2500)
+    # 5. Agent executes actions
+    invoice = safe_stripe.invoices.create(customer="cus_123", amount=5000)
 
-    # 6. Mark the session as successfully completed
+    # 6. Complete session to lock audit record
     rein.complete_session(session)
-    print("Workflow completed successfully.")
+    print("Agent workflow finished safely.")
 
 except ApprovalRejectedError as err:
-    print(f"Action rejected by reviewer: {err.reason}")
+    print(f"Action rejected by dashboard reviewer: {err.reason}")
     rein.rollback_session(session)
 
 except Exception as err:
-    print(f"Workflow failed: {err}. Initiating automatic rollback...")
+    print(f"Workflow error: {err}. Unwinding all tool calls...")
     rein.rollback_session(session)
     raise
 ```
 
 ---
 
-## Core Concepts
+## Framework Compatibility
 
-| Concept | Description |
-| :--- | :--- |
-| **`Session`** | The transactional boundary of an agent workflow. All actions intercepted during a session are indexed and rolled back together as a unified unit. |
-| **`wrap()`** | A dynamic proxy wrapper that intercepts method calls on any third-party SDK client, logging actions and enforcing configured safety policies. |
-| **LIFO Rollback** | Last-In-First-Out compensation: actions are rolled back in strict reverse order of execution using registered connector inverse handlers. |
-| **Approval Gates** | High-stakes actions configured in `requires_approval` are queued as `PENDING_APPROVAL` until approved by a team member in the AgentRein dashboard. |
-| **Fail Modes** | Configurable resiliency: `failure_mode="open"` (default) allows production agents to proceed if the control plane is offline; `failure_mode="closed"` halts execution for regulated environments. |
+AgentRein works seamlessly across the Python AI agent ecosystem without modifying your prompt engineering or agent loops:
+
+- **LangChain & LangGraph**
+- **OpenAI Assistants & Function Calling**
+- **Anthropic Tool Use**
+- **Groq & LlamaIndex**
+- **Mastra & Native Python Runtimes**
 
 ---
 
 ## Usage Guide
 
-### Human Approval Gates
+### 1. Automatic Rollback
 
-Prevent catastrophic autonomous mistakes by requiring manual human approval for sensitive method paths:
+When a multi-step agent workflow crashes halfway through, calling `rein.rollback_session(session)` triggers LIFO (last-in-first-out) compensation. Every executed tool call is reversed automatically using pre-execution snapshots and inverse handlers.
+
+```python
+try:
+    # Step 1: Create issue in GitHub
+    safe_github.issues.create(title="Bug Report")
+    # Step 2: Notify Slack
+    safe_slack.chat.post_message(channel="#eng", text="Investigating")
+    # Step 3: Fails here!
+    raise RuntimeError("Model hallucinated invalid payload")
+except Exception:
+    # Rolls back Slack (deletes message) then GitHub (closes issue)
+    rein.rollback_session(session)
+```
+
+### 2. Human Approval Gates
+
+Hold high-risk operations in a `PENDING_APPROVAL` queue until a team member confirms the action in the AgentRein dashboard:
 
 ```python
 safe_github = rein.wrap(
@@ -147,19 +198,17 @@ safe_github = rein.wrap(
     session=session,
     connector="github",
     requires_approval=["repos.delete", "issues.delete"],
-    poll_interval_ms=3000,   # Check approval status every 3 seconds
-    timeout_ms=300_000,      # Wait up to 5 minutes before timing out
+    poll_interval_ms=2000,
+    timeout_ms=300_000, # 5-minute timeout
 )
 
-# Execution will pause here until approved in the AgentRein dashboard:
-safe_github.repos.delete(owner="my-org", repo="legacy-repo")
+# Execution pauses here until approved
+safe_github.repos.delete(owner="my-org", repo="repo-name")
 ```
 
-If the reviewer rejects the request, an `ApprovalRejectedError` is raised with the reviewer's reason. If the timeout expires without approval, an `ApprovalTimeoutError` is raised.
+### 3. Idempotent Retries
 
-### Idempotent Retries
-
-Network hiccups and rate limits shouldn't break long-running agent workflows. Specify methods in `retryable` to automatically apply jittered exponential backoff:
+Avoid failing long-running agent execution on transient 429 rate-limits or network blips:
 
 ```python
 safe_hubspot = rein.wrap(
@@ -170,30 +219,10 @@ safe_hubspot = rein.wrap(
 )
 ```
 
-### Sandbox Simulation
+### 4. Fail Modes (Open vs. Closed)
 
-When running agents in testing or dry-run modes, configure the session as a sandbox:
-
-```python
-sandbox_session = rein.new_session(
-    agent_id="test-agent",
-    intent="Dry-run customer notifications",
-)
-# If the session is marked as sandbox on the backend, safe calls return
-# synthetic responses without touching third-party APIs.
-```
-
-### Fail Modes (Open vs. Closed)
-
-```python
-# Default: Fail-Open (Recommended for standard web services & AI assistants)
-# If AgentRein servers are unreachable, calls proceed directly to the third-party API.
-rein = AgentRein(api_key="...", failure_mode="open")
-
-# Fail-Closed (Recommended for financial services, healthcare, security-critical ops)
-# If AgentRein servers are unreachable, an AgentReinUnavailableError is raised.
-rein = AgentRein(api_key="...", failure_mode="closed")
-```
+- **`failure_mode="open"` (Default)**: Production agent operations continue normally if the AgentRein control plane is temporarily unreachable.
+- **`failure_mode="closed"`**: Enforces strict compliance. Intercepted calls fail fast with `AgentReinUnavailableError` if the control plane cannot be reached.
 
 ---
 
@@ -209,26 +238,22 @@ class AgentRein(
 )
 ```
 
-#### Methods
-
 - **`new_session(agent_id: str | None = None, intent: str | None = None) -> Session`**  
-  Creates a new tracked safety session. If `agent_id` is omitted, a UUID is automatically generated.
+  Starts a safety session for an agent workflow with optional goal/intent declaration.
 - **`resume_session(session_id: str) -> Session`**  
-  Retrieves an active session by ID (alias: `get_session`).
-- **`wrap(client: T, session: Session, connector: str, requires_approval: list[str] | None = None, retryable: list[str] | None = None, poll_interval_ms: int = 2000, timeout_ms: int = 86_400_000) -> T`**  
-  Wraps any SDK client with the AgentRein safety proxy. Returns the client cast to its original type `T`.
+  Retrieves an active session by its ID (alias: `get_session`).
+- **`wrap(client: T, session: Session, connector: str, ...) -> T`**  
+  Wraps any vendor SDK client with the transparent safety proxy.
 - **`complete_session(session: Session) -> None`**  
-  Marks the session as `COMPLETED`. Locks the session and prevents further mutations.
+  Marks the session as `COMPLETED`. Locks the execution timeline.
 - **`rollback_session(session: Session) -> None`**  
   Triggers server-side LIFO compensation for all recorded actions in the session.
 - **`validate_config(connectors: list[str]) -> dict[str, Any]`**  
-  Verifies API credentials and permissions for the specified connector names.
+  Verifies that configured connector credentials and permissions are healthy.
 
 ---
 
 ## Error Handling
-
-AgentRein exports typed exceptions for granular error handling:
 
 ```python
 from agentrein.errors import (
@@ -237,59 +262,52 @@ from agentrein.errors import (
     ApprovalRejectedError,
     ApprovalTimeoutError,
     ConfigValidationError,
-    WrapOptionsValidationError,
 )
 
 try:
-    safe_client.invoices.create(...)
+    safe_client.execute()
 except ApprovalRejectedError as e:
-    print(f"Action {e.action_id} was rejected. Reason: {e.reason}")
+    print(f"Action {e.action_id} was rejected by operator: {e.reason}")
 except ApprovalTimeoutError as e:
-    print(f"Action {e.action_id} timed out after {e.timeout_ms}ms")
+    print(f"Approval timed out after {e.timeout_ms}ms")
 except AgentReinUnavailableError as e:
-    print(f"Safety control plane is unreachable: {e}")
-except AgentReinError as e:
-    print(f"General AgentRein error: {e}")
+    print(f"AgentRein control plane unreachable: {e}")
 ```
 
 ---
 
 ## Supported Connectors
 
-AgentRein comes with built-in reversible action definitions across major enterprise platforms:
+Works out of the box with the tools your agents already use:
 
-| Connector | Supported Actions | Primary Rollback Strategy |
-| :--- | :--- | :--- |
-| **GitHub** | 20 actions (Issues, PRs, Comments, Labels, Stars) | Soft-delete, close, or revert state |
-| **Slack** | 24 actions (Messages, Threads, Reactions, Pins) | Delete message, correction reply, remove reaction |
-| **Stripe** | 10 actions (Customers, Invoices, Refunds, Subscriptions) | Delete customer/draft, cancel subscription |
-| **HubSpot** | 17 actions (Contacts, Deals, Companies, Tickets) | Restore `beforeState` snapshot or soft-delete |
-| **Salesforce** | 28 actions (Contacts, Accounts, Leads, Opportunities) | Restore pre-execution SObject snapshot |
-| **Gmail** | 16 actions (Messages, Drafts, Labels, Threads) | Move to trash, correction reply, restore labels |
-| **Google Drive** | 10 actions (Files, Folders, Permissions) | Trash, restore version, undo move/permissions |
-| **Google Sheets**| 8 actions (Spreadsheets, Sheets, Rows, Cells) | Clear inserted rows, restore previous cell state |
-| **Notion** | 9 actions (Pages, Database Items, Blocks) | Archive page, delete block, restore properties |
+| Connector | Actions | What AgentRein Does on Rollback |
+| :--- | :---: | :--- |
+| **Stripe** | 10 | Reverses charges & deletes invoices |
+| **Slack** | 24 | Unsends messages & deletes posts |
+| **GitHub** | 20 | Closes issues & reverts commits |
+| **HubSpot** | 17 | Restores contacts & deals |
+| **Salesforce** | 28 | Rolls back records & opportunities |
+| **Gmail** | 16 | Unsends drafts & deletes threads |
+| **Google Drive** | 10 | Restores files & permissions |
+| **Google Sheets**| 8 | Reverts cell edits & row changes |
+| **Notion** | 9 | Deletes pages & restores blocks |
 
 ---
 
 ## Development & Testing
 
-If you are contributing to the Python SDK from inside the [AgentRein monorepo](https://github.com/agentrein/agentrein):
+When contributing from within the [AgentRein monorepo](https://github.com/agentrein/agentrein):
 
 ```bash
-# 1. Create and activate a virtual environment
+# 1. Setup virtual environment
 python3 -m venv .venv
 source .venv/bin/activate
 
-# 2. Install editable package with development dependencies
+# 2. Install editable package with dev dependencies
 pip install -e "sdk-python[dev]"
 
 # 3. Run test suite
 pytest sdk-python/tests
-
-# 4. Run type checker and linter
-mypy sdk-python/agentrein
-ruff check sdk-python/agentrein
 ```
 
 ---
