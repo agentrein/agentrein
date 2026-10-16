@@ -1,49 +1,149 @@
+<div align="center">
+
 # AgentRein Connectors
 
-> Wrap your AI agents. Undo anything.
+**Production-ready, reversible-action connectors for AI agent tool calls.**  
+9 Connectors • 142 Reversible Actions • Canonical Single Source of Truth.
 
-[![Build Status](https://img.shields.io/github/actions/workflow/status/agentrein/agentrein/sync-connectors.yml?branch=main)](https://github.com/agentrein/agentrein/actions)
-[![License](https://img.shields.io/github/license/agentrein/agentrein)](../LICENSE)
+[![Actions Count](https://img.shields.io/badge/Actions-142%20Reversible-brightgreen.svg?style=flat-square)](https://github.com/agentrein/agentrein/tree/main/connectors)
+[![Connectors Count](https://img.shields.io/badge/Connectors-9%20Platforms-blue.svg?style=flat-square)](https://github.com/agentrein/agentrein/tree/main/connectors)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square)](https://opensource.org/licenses/MIT)
+[![CI Status](https://img.shields.io/github/actions/workflow/status/agentrein/agentrein/ci-ts.yml?branch=main&style=flat-square&label=CI)](https://github.com/agentrein/agentrein/actions)
 
-## What is this?
+[Website](https://agentrein.com) • [Documentation](https://agentrein.com/docs) • [Contributing Guide](./CONTRIBUTING.md) • [Report Issue](https://github.com/agentrein/agentrein/issues)
 
-AgentRein is an AI Agent Reliability Platform that wraps existing AI frameworks (LangChain, LangGraph, n8n, custom runtimes) with a safety and reversibility layer—enforcing human approval gates, one-click rollback/undo execution, intent drift detection, and unified audit logs across external tools.
+</div>
 
-This repository (`agentrein-connectors`) is the single **source of truth** for all AgentRein connector implementations. Each connector defines standard action contracts, resource URL resolvers, pre-execution snapshot rules, and inverse compensation handlers across third-party APIs.
+---
 
-All changes merged into this repository are automatically propagated to the main platform backend path (`backend/src/core/registry/connectors/`) via `.github/workflows/sync-connectors.yml`.
+## Overview
+
+When autonomous AI agents interact with external platforms (GitHub, Slack, Salesforce, HubSpot, Stripe, Google Workspace), any runtime error, prompt drift, or unexpected model output can cause unintended external mutations.
+
+**AgentRein Connectors** provide the canonical contracts and inverse compensation handlers that make these tool calls safe:
+1. **Pre-Execution Snapshots**: Automatically captures the previous state of modified resources (`beforeState`) before destructive operations execute.
+2. **Deterministic Rollback**: Each action defines an exact, idempotent compensation strategy (hard/soft delete, state restore, correction reply, or inverse toggle).
+3. **Safety Gates**: Classifies operations into risk tiers (`LOW`, `MEDIUM`, `HIGH`) to automatically enforce human sign-off when needed.
+4. **Audit Logging**: Resolves deterministic resource URLs for every action to provide an immutable, visual audit trail in the AgentRein dashboard.
+
+---
+
+## Architecture & Sync Mechanism
+
+This directory (`connectors/`) is the **single source of truth** for all connector implementations across the AgentRein platform.
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│  agentrein / connectors (Public Open-Source Repository)      │
+│  - connectors/connectors/*.connector.ts                      │
+│  - connectors/types/index.ts (Type mirror)                  │
+└──────────────────────────────┬──────────────────────────────┘
+                               │
+                               │ Automated GitHub Action
+                               │ (.github/workflows/sync-connectors.yml)
+                               ▼
+┌─────────────────────────────────────────────────────────────┐
+│  agentrein / backend (Private Platform Service)             │
+│  - backend/src/core/registry/connectors/ (Read-Only Mirror) │
+│  - backend/src/core/registry/types.ts                       │
+└─────────────────────────────────────────────────────────────┘
+```
+
+- All community and maintainer contributions are developed, tested, and reviewed here.
+- When pull requests merge to `main`, an automated GitHub workflow opens a synchronization PR against the private backend registry.
+- Direct edits to the backend mirror are strictly prohibited to prevent repository drift.
+
+---
 
 ## Supported Connectors
 
-| Connector | Actions | Notes |
-|---|---|---|
-| github | 20 | Pilot connector; established the base template |
-| slack | 24 | Largest initial connector prior to Salesforce |
-| gmail | 16 | Covers message, draft, thread, and label operations |
-| gdrive | 10 | Manages file lifecycle, permissions, and folder mappings |
-| gsheets | 8 | Smallest connector—row/column positions lack stable identifiers |
-| hubspot | 17 | Covers primary CRM primitives (Contacts, Deals, Companies, Tickets) |
-| notion | 9 | Manages pages, database items, and block structures |
-| salesforce | 28 | Largest connector to date; supports dynamic SObjects |
-| stripe | 10 | Final connector of the initial platform expansion |
+The repository currently provides **9 production connectors** spanning **142 reversible actions**:
 
-For custom integrations not listed above, refer to `examples/custom-connector.example.ts`.
+| Connector | Actions | Supported Primitives | Primary Rollback Strategy | File |
+| :--- | :---: | :--- | :--- | :--- |
+| **GitHub** | **20** | Issues, Issue Comments, Pull Requests, Reviews, Labels, Stars, Releases | Soft-delete, close, remove label/reaction, unstar | [`github.connector.ts`](./connectors/github.connector.ts) |
+| **Slack** | **24** | Messages, Threads, Reactions, Pins, Channel Topics, Canvas | Message deletion, thread correction replies, remove reaction | [`slack.connector.ts`](./connectors/slack.connector.ts) |
+| **Salesforce** | **28** | Contacts, Accounts, Leads, Opportunities, Tasks, Custom SObjects | Restore pre-execution SObject snapshot or soft-delete | [`salesforce.connector.ts`](./connectors/salesforce.connector.ts) |
+| **HubSpot** | **17** | Contacts, Companies, Deals, Tickets, Line Items, Engagements | Restore `beforeState` snapshot or soft-delete entity | [`hubspot.connector.ts`](./connectors/hubspot.connector.ts) |
+| **Gmail** | **16** | Messages, Drafts, Labels, Threads, Signatures | Move to trash, restore label mappings, thread correction reply | [`gmail.connector.ts`](./connectors/gmail.connector.ts) |
+| **Google Drive** | **10** | Files, Folders, Permissions, Revisions, Moves | Trash file, restore previous revision, revert permissions | [`gdrive.connector.ts`](./connectors/gdrive.connector.ts) |
+| **Stripe** | **10** | Customers, Invoices, Payment Links, Subscriptions, Refunds | Delete draft invoice, cancel customer/subscription | [`stripe.connector.ts`](./connectors/stripe.connector.ts) |
+| **Notion** | **9** | Pages, Database Items, Blocks, Comments | Archive page, delete blocks, restore properties | [`notion.connector.ts`](./connectors/notion.connector.ts) |
+| **Google Sheets**| **8** | Spreadsheets, Sheets, Rows, Cell Ranges | Clear inserted rows/columns, restore overwritten cell ranges | [`gsheets.connector.ts`](./connectors/gsheets.connector.ts) |
 
-## Known Limitations
+---
 
-The following items are known, flagged technical debt scheduled for dedicated platform updates:
+## Action Classification System
 
-- **Hardcoded Context**: The `notion`, `salesforce`, and `stripe` connectors currently hardcode `const orgId = 'unknown';` instead of dynamically deriving organization context from the execution session.
-- **Bypass on Unregistered Actions**: Actions executed with an unregistered or unknown `apiName` currently bypass rollback indexing and approval gating without throwing an error.
+Every action definition follows a standardized **4-Group Classification System**:
 
-Contributors must not patch these underlying framework behaviors as side effects within unrelated connector pull requests.
+| Group | `operationType` | `captureBeforeState` | Rollback Mechanism | Identifier Source |
+| :--- | :---: | :---: | :--- | :--- |
+| **Group 1: Create** | `CREATE` | `false` | Inverse deletion or closure. | `action.response` (Resource ID returned by API). |
+| **Group 2: Update/Delete** | `UPDATE` \| `DELETE` | `true` | Restores snapshot state from `action.snapshot.beforeState`. | `action.payload` (Target entity ID) + snapshot. |
+| **Group 3: Toggle** | `UPDATE` | `false` | Self-sufficient inverse operation (lock ↔ unlock, archive ↔ unarchive). | Both directions must be independently verified. |
+| **Group 4: Non-Reversible** | Varies | `false` | Destructive or non-compensable actions. Sets `safetyLevel: 'HIGH'` and `type: 'NONE'`. | Requires explicit human approval before execution. |
 
-## Contributing
+---
 
-We welcome contributions for new actions and platform connectors. To maintain reliability guarantees, all contributions must strictly follow our 4-Group action classification system, naming specifications, and verification workflows.
+## Naming Conventions
 
-Read [CONTRIBUTING.md](./CONTRIBUTING.md) for full development, typing, and submission guidelines.
+All connector actions strictly implement a flat three-segment dot notation:
+
+```
+provider.resource.action
+```
+
+Examples:
+- `github.issues.create`
+- `slack.chat.postMessage`
+- `salesforce.contacts.update`
+- `stripe.invoices.del`
+
+### Rules
+1. **Segment Count**: Exactly three dot-separated segments.
+2. **Compound Sub-Resources**: Represent sub-entities in camelCase within the second segment (e.g., `github.issueComments.create`, **not** `github.issues.comments.create`).
+3. **Composite Keys**: For operations identified by tuples rather than a single ID (e.g., Slack reactions requiring `channel` + `timestamp` + `name`), read parameters directly from `action.payload` and document the exception in code comments.
+
+---
+
+## Authoring a Connector
+
+To implement a new connector or add actions to an existing one:
+
+1. **Use the Template**: Copy [`examples/custom-connector.example.ts`](./examples/custom-connector.example.ts) to `connectors/<name>.connector.ts`.
+2. **Implement Actions**: Define actions adhering strictly to the `@agentrein/types` contracts.
+3. **Standard Error Formatting**: All thrown rollback exceptions must match this exact format:
+   ```typescript
+   `[${connectorName}Connector] rollback failed | action: ${id} | org: ${orgId} | op: ${op} | reason: ...`
+   ```
+4. **Idempotent 404 Handling**: API `404 Not Found` errors during deletion must be swallowed silently to prevent rollback failure when resources were already removed.
+5. **Resource URL Resolvers**: Provide null-safe URL resolvers for all actions to populate audit logs in the user dashboard.
+
+For complete development guidelines, review our [Contributing Guide](./CONTRIBUTING.md).
+
+---
+
+## Verification & Testing
+
+Before submitting a pull request, verify that all connectors compile without errors:
+
+```bash
+# 1. Install dependencies from monorepo root
+npm ci
+
+# 2. Build canonical types
+npm run build --workspace types
+
+# 3. Verify types mirror is byte-identical
+bash scripts/check-types-mirror.sh
+
+# 4. Run TypeScript compiler across all connectors
+cd connectors && npx tsc --noEmit
+```
+
+---
 
 ## License
 
-See the [LICENSE](./LICENSE) file for licensing details.
+Distributed under the [MIT License](https://github.com/agentrein/agentrein/blob/main/LICENSE). See `LICENSE` for more information.
