@@ -1,0 +1,21 @@
+# Dependencies
+node_modules/
+
+# Build artifacts
+dist/
+*.whl
+*.tar.gz
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+.venv/
+.pytest_cache/
+.ruff_cache/
+
+# System
+.DS_Store
