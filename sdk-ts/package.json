@@ -1,9 +1,15 @@
 {
   "name": "agentrein",
   "version": "1.0.45",
+  "license": "MIT",
   "main": "./dist/cjs/index.js",
   "module": "./dist/esm/index.js",
   "types": "./dist/cjs/index.d.ts",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/agentrein/agentrein-core.git",
+    "directory": "sdk-ts"
+  },
   "exports": {
     ".": {
       "types": "./dist/cjs/index.d.ts",
