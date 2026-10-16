@@ -1,6 +1,6 @@
 # Contributing to AgentRein Connectors
 
-Thank you for contributing to `agentrein-connectors`. This repository contains the canonical connector definitions used by the AgentRein execution engine to audit, gate, and roll back AI agent tool calls.
+Thank you for contributing to `agentrein-core` (folder `connectors/`). This repository contains the canonical connector definitions used by the AgentRein execution engine to audit, gate, and roll back AI agent tool calls.
 
 ---
 
@@ -8,15 +8,15 @@ Thank you for contributing to `agentrein-connectors`. This repository contains t
 
 This repository is the single source of truth for all connector code.
 
-- **Sync Policy**: Code changes must **only** be made inside this repository (`agentrein-connectors`).
-- **Read-Only Mirror**: The backend path `backend/src/core/registry/connectors/` is a read-only mirror maintained by `.github/workflows/sync-connectors.yml`.
+- **Sync Policy**: Code changes must **only** be made inside this repository (`agentrein-core`, folder `connectors/`).
+- **Read-Only Mirror**: The backend path `backend/src/core/registry/connectors/` is a read-only mirror maintained by `.github/workflows/sync-connectors.yml` at the repo root.
 - **Direct Edits Forbidden**: Direct modifications to the backend copy will cause repository drift and will be overwritten by the next automated sync workflow.
 
 ---
 
 ## Core Type Contracts
 
-All action definitions must conform strictly to the interfaces exported by `types/index.ts`. Contributor pull requests should avoid editing `types/index.ts` unless a genuine type-level gap is confirmed.
+All action definitions must conform strictly to the interfaces exported by `types/src/index.ts` (package `@agentrein/types`). `connectors/types/index.ts` is a byte-identical MIRROR that connector files import as `'../types'` and that the backend sync copies. If a type change is ever genuinely needed, both files must be edited identically and `bash scripts/check-types-mirror.sh` must pass (CI enforces it).
 
 ```typescript
 export type OperationType = "CREATE" | "UPDATE" | "DELETE";
@@ -87,7 +87,7 @@ All action implementations must comply with the following standards:
 1. **Resource URL Resolvers**: Every action (including Group 1 `CREATE` operations) must implement a `resourceUrlResolver` to support audit log navigation. Resolvers must be null-safe and return `null` on missing or invalid parameters without throwing exceptions.
 2. **Standard Error Formatting**: Thrown rollback errors must match this exact format string:
    ```typescript
-   `[${connectorName}Connector] rollback failed \vert{} action:${id} | org: ${orgId} \vert{} op:${op} | reason: ...`
+   `[${connectorName}Connector] rollback failed | action: ${id} | org: ${orgId} | op: ${op} | reason: ...`
    ```
 3. **Idempotent 404 Handling**: API `404 Not Found` responses encountered during rollback execution must be swallowed silently to ensure idempotency when a resource has already been deleted.
 4. **No Ambiguous Endpoint Fallbacks**: Do not attempt multiple endpoints or speculative fallback routines (e.g., try endpoint A, catch error, try endpoint B). Select a single deterministic endpoint and document the rationale in an inline comment.
@@ -102,28 +102,27 @@ All action implementations must comply with the following standards:
 
 PRs will not be merged without strict type verification:
 
-1. **Compiler Check**: Run the full project TypeScript check from the repository root:
+1. **Compiler Check**: Run `npm ci` at the repo root, `npm run build --workspace types`, then run the TypeScript check for connectors:
    ```bash
-   npx tsc --noEmit
+   cd connectors && npx tsc --noEmit
    ```
-   *Do not pass `--skipLibCheck` or target individual files.*
-2. **Dependency Presence**: Verify that `typescript` is explicitly listed under `devDependencies` in `package.json` before relying on `npx tsc`.
-3. **SDK Verification Evidence**: Any claim that an SDK method or endpoint behavior was verified must be substantiated in the PR description with a literal quoted code snippet from the corresponding `.d.ts` declaration file, including the relative file path. Bare assertions of verification are not accepted.
+   *Do not pass `--skipLibCheck` or target individual files; `typescript` is already a devDependency of the workspace.*
+2. **SDK Verification Evidence**: Any claim that an SDK method or endpoint behavior was verified must be substantiated in the PR description with a literal quoted code snippet from the corresponding `.d.ts` declaration file, including the relative file path. Bare assertions of verification are not accepted.
 
 ---
 
 ## Workflow: Proposing or Modifying Connectors
 
 ### Adding an Action to an Existing Connector
-1. Locate the file in `connectors/<connectorName>.connector.ts`.
+1. Locate the file in `connectors/connectors/<name>.connector.ts`.
 2. Add the action adhering to the 3-segment naming convention and 4-Group classification.
-3. Verify type correctness via `npx tsc --noEmit`.
+3. Verify type correctness (see Verification & Quality Assurance above).
 
 ### Proposing a New Connector
-1. Copy `examples/custom-connector.example.ts` to `connectors/<newconnector>.connector.ts`.
+1. Copy `connectors/examples/custom-connector.example.ts` to `connectors/connectors/<newconnector>.connector.ts`.
 2. Implement actions and type definitions using official SDKs.
-3. Confirm the new connector file is included in whatever mechanism sync-connectors.yml uses to copy files into the backend (currently a directory-level cp -r, no index file required on this side).
-4. Update the **Supported Connectors** table in `README.md`.
+3. Confirm the new connector file is included in whatever mechanism .github/workflows/sync-connectors.yml uses to copy files into the backend (currently a directory-level cp -r, no index file required on this side).
+4. Update the **Supported Connectors** table in `connectors/README.md`.
 5. After the automated sync PR merges into the backend repo, a maintainer must complete the manual backend-registration step (see connector-expansion-framework.md, Step 4.5) — registering the connector in backend/src/core/registry/index.ts and backend/src/core/connectors.ts. The sync alone does not make a new connector usable.
 
 ---
