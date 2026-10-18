@@ -1,9 +1,9 @@
 # AgentRein TypeScript SDK
 
-[![npm version](https://img.shields.io/npm/v/agentrein.svg?style=flat-square)](https://www.npmjs.com/package/agentrein)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5.0+-blue.svg?style=flat-square)](https://www.typescriptlang.org/)
-[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg?style=flat-square)](https://opensource.org/licenses/MIT)
-[![CI Status](https://img.shields.io/github/actions/workflow/status/agentrein/agentrein/ci-ts.yml?branch=main&style=flat-square)](https://github.com/agentrein/agentrein/actions)
+[![npm version](https://img.shields.io/npm/v/agentrein?logo=npm&logoColor=white&color=CB3837&style=flat-square)](https://www.npmjs.com/package/agentrein)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.0+-3178C6?logo=typescript&logoColor=white&style=flat-square)](https://www.typescriptlang.org/)
+[![CI Status](https://img.shields.io/github/actions/workflow/status/agentrein/agentrein/ci-ts.yml?branch=main&label=CI&logo=github&logoColor=white&style=flat-square)](https://github.com/agentrein/agentrein/actions/workflows/ci-ts.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue?style=flat-square)](https://github.com/agentrein/agentrein/blob/main/LICENSE)
 
 Automatic rollback and execution safety for TypeScript AI agents.
 
@@ -74,8 +74,8 @@ try {
   // Wrap the client with AgentRein safety policies
   const safeStripe = agentrein.wrap(stripe, session, {
     connector: 'stripe',
-    requiresApproval: ['invoices.del', 'subscriptions.cancel'],
-    retryable: ['charges.retrieve'],
+    requiresApproval: ['customers.delete', 'refunds.create'],
+    retryable: ['customers.create', 'invoices.create'],
   });
 
   // Execute operations normally
@@ -132,13 +132,13 @@ Hold high-risk operations in a pending state until a human operator confirms the
 ```typescript
 const safeGitHub = agentrein.wrap(octokit, session, {
   connector: 'github',
-  requiresApproval: ['repos.delete', 'issues.delete'],
+  requiresApproval: ['issues.lock', 'files.delete'],
   pollIntervalMs: 2000,
   timeoutMs: 300_000, // 5-minute timeout
 });
 
 // Execution blocks here until approved in the dashboard
-await safeGitHub.repos.delete({ owner: 'acme-corp', repo: 'critical-repo' });
+await safeGitHub.issues.lock({ owner: 'acme-corp', repo: 'critical-repo', issue_number: 42, lock_reason: 'resolved' });
 ```
 
 If the operator rejects the action, an `ApprovalRejectedError` is thrown. If the timeout expires without review, an `ApprovalTimeoutError` is thrown.
@@ -218,7 +218,7 @@ try {
 | :--- | :---: | :--- |
 | **Stripe** | 10 | Reverses charges & deletes invoices |
 | **Slack** | 24 | Unsends messages & deletes posts |
-| **GitHub** | 20 | Closes issues & reverts commits |
+| **GitHub** | 20 | Closes issues, deletes comments & cleans releases |
 | **HubSpot** | 17 | Restores contacts & deals |
 | **Salesforce** | 28 | Rolls back records & opportunities |
 | **Gmail** | 16 | Unsends drafts & deletes threads |

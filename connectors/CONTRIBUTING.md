@@ -25,6 +25,7 @@ export type RollbackType = "API_CALL" | "CORRECTION_MESSAGE" | "NONE";
 
 export interface RollbackContext {
   client: unknown; // cast to the connector's SDK type internally
+  orgId?: string;  // tenant or organization identifier
 }
 
 export interface RollbackStrategy {
@@ -123,13 +124,10 @@ PRs will not be merged without strict type verification:
 2. Implement actions and type definitions using official SDKs.
 3. Confirm the new connector file is included in whatever mechanism .github/workflows/sync-connectors.yml uses to copy files into the backend (currently a directory-level cp -r, no index file required on this side).
 4. Update the **Supported Connectors** table in `connectors/README.md`.
-5. After the automated sync PR merges into the backend repo, a maintainer must complete the manual backend-registration step (see connector-expansion-framework.md, Step 4.5) — registering the connector in backend/src/core/registry/index.ts and backend/src/core/connectors.ts. The sync alone does not make a new connector usable.
+5. After the automated sync PR merges into the private backend repository, a platform maintainer completes the internal registry registration step (`src/core/registry/index.ts` and `src/core/connectors.ts`) to enable the connector on the control plane.
 
 ---
 
 ## Documentation Updates
 
-Following the merge of any PR that introduces new actions or connectors:
-- Update action counts and endpoint entries in `docs/sdk/connectors.mdx`.
-- Update per-connector metrics in `docs/sdk/supported-integrations.mdx` if applicable.
-- Do not rephrase existing documentation wording outside the scope of your addition.
+Following the merge of any PR that introduces new actions or connectors, maintainers will synchronize public documentation on [agentrein.com/docs](https://agentrein.com/docs) (updating action counts, supported integration tables, and endpoint mappings). Contributors may optionally note proposed documentation descriptions in their PR description.

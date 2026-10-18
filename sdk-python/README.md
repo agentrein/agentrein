@@ -1,9 +1,9 @@
 # AgentRein Python SDK
 
-[![PyPI Version](https://img.shields.io/pypi/v/agentrein.svg?style=flat-square)](https://pypi.org/project/agentrein/)
-[![Python](https://img.shields.io/pypi/pyversions/agentrein.svg?style=flat-square)](https://pypi.org/project/agentrein/)
-[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg?style=flat-square)](https://opensource.org/licenses/MIT)
-[![CI Status](https://img.shields.io/github/actions/workflow/status/agentrein/agentrein/ci-python.yml?branch=main&style=flat-square)](https://github.com/agentrein/agentrein/actions)
+[![PyPI Version](https://img.shields.io/pypi/v/agentrein?logo=pypi&logoColor=white&color=3775A9&style=flat-square)](https://pypi.org/project/agentrein/)
+[![Python Versions](https://img.shields.io/pypi/pyversions/agentrein?logo=python&logoColor=white&style=flat-square)](https://pypi.org/project/agentrein/)
+[![CI Status](https://img.shields.io/github/actions/workflow/status/agentrein/agentrein/ci-python.yml?branch=main&label=CI&logo=github&logoColor=white&style=flat-square)](https://github.com/agentrein/agentrein/actions/workflows/ci-python.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue?style=flat-square)](https://github.com/agentrein/agentrein/blob/main/LICENSE)
 
 Automatic rollback and execution safety for Python AI agents.
 
@@ -132,13 +132,13 @@ safe_github = rein.wrap(
     github_client,
     session=session,
     connector="github",
-    requires_approval=["repos.delete", "issues.delete"],
+    requires_approval=["issues.lock", "files.delete"],
     poll_interval_ms=2000,
     timeout_ms=300_000, # 5-minute timeout
 )
 
 # Execution blocks here until approved in the dashboard
-safe_github.repos.delete(owner="my-org", repo="legacy-repo")
+safe_github.issues.lock(owner="my-org", repo="legacy-repo", issue_number=42)
 ```
 
 If the operator rejects the action, an `ApprovalRejectedError` is raised. If the timeout expires without review, an `ApprovalTimeoutError` is raised.
@@ -219,7 +219,7 @@ except AgentReinUnavailableError as err:
 | :--- | :---: | :--- |
 | **Stripe** | 10 | Reverses charges & deletes invoices |
 | **Slack** | 24 | Unsends messages & deletes posts |
-| **GitHub** | 20 | Closes issues & reverts commits |
+| **GitHub** | 20 | Closes issues, deletes comments & cleans releases |
 | **HubSpot** | 17 | Restores contacts & deals |
 | **Salesforce** | 28 | Rolls back records & opportunities |
 | **Gmail** | 16 | Unsends drafts & deletes threads |

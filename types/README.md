@@ -1,9 +1,9 @@
 # @agentrein/types
 
-[![npm version](https://img.shields.io/npm/v/@agentrein/types.svg?style=flat-square)](https://www.npmjs.com/package/@agentrein/types)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5.0+-blue.svg?style=flat-square)](https://www.typescriptlang.org/)
-[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg?style=flat-square)](https://opensource.org/licenses/MIT)
-[![CI Status](https://img.shields.io/github/actions/workflow/status/agentrein/agentrein/ci-ts.yml?branch=main&style=flat-square)](https://github.com/agentrein/agentrein/actions)
+[![npm version](https://img.shields.io/npm/v/@agentrein/types?logo=npm&logoColor=white&color=CB3837&style=flat-square)](https://www.npmjs.com/package/@agentrein/types)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.0+-3178C6?logo=typescript&logoColor=white&style=flat-square)](https://www.typescriptlang.org/)
+[![CI Status](https://img.shields.io/github/actions/workflow/status/agentrein/agentrein/ci-ts.yml?branch=main&label=CI&logo=github&logoColor=white&style=flat-square)](https://github.com/agentrein/agentrein/actions/workflows/ci-ts.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue?style=flat-square)](https://github.com/agentrein/agentrein/blob/main/LICENSE)
 
 Canonical TypeScript interfaces and type contracts for AgentRein connectors.
 

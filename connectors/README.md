@@ -1,8 +1,9 @@
 # AgentRein Connectors
 
-[![CI Status](https://img.shields.io/github/actions/workflow/status/agentrein/agentrein/ci-ts.yml?branch=main&style=flat-square)](https://github.com/agentrein/agentrein/actions)
-[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg?style=flat-square)](https://opensource.org/licenses/MIT)
-[![Reversible Actions](https://img.shields.io/badge/actions-142%20reversible-333333.svg?style=flat-square)](https://agentrein.com)
+[![CI Status](https://img.shields.io/github/actions/workflow/status/agentrein/agentrein/ci-ts.yml?branch=main&label=CI&logo=github&logoColor=white&style=flat-square)](https://github.com/agentrein/agentrein/actions/workflows/ci-ts.yml)
+[![Connectors](https://img.shields.io/badge/connectors-9%20available-brightgreen?style=flat-square)](https://agentrein.com)
+[![Mapped Actions](https://img.shields.io/badge/actions-142%20mapped-blueviolet?style=flat-square)](https://agentrein.com)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue?style=flat-square)](https://github.com/agentrein/agentrein/blob/main/LICENSE)
 
 Reversible action contracts and compensation handlers for AI agent tool calls.
 
@@ -52,19 +53,19 @@ This directory is the single source of truth for all connector implementations a
 
 ## Supported Connectors
 
-The repository includes 9 production connectors covering 142 reversible actions:
+The repository includes 9 production connectors covering **142 mapped actions (109 reversible + 33 approval-gated)**:
 
-| Connector | Actions | Supported Primitives | Rollback Mechanism | Implementation |
-| :--- | :---: | :--- | :--- | :--- |
-| **Stripe** | 10 | Customers, Invoices, Payment Links, Subscriptions, Refunds | Deletes draft invoices, cancels subscriptions, refunds charges | [`stripe.connector.ts`](./connectors/stripe.connector.ts) |
-| **Slack** | 24 | Messages, Threads, Reactions, Pins, Channel Topics | Deletes messages, posts thread correction replies, removes reactions | [`slack.connector.ts`](./connectors/slack.connector.ts) |
-| **GitHub** | 20 | Issues, Comments, Pull Requests, Reviews, Labels, Stars | Closes issues, soft-deletes comments, unstars repos, reverts states | [`github.connector.ts`](./connectors/github.connector.ts) |
-| **HubSpot** | 17 | Contacts, Companies, Deals, Tickets, Line Items | Restores `beforeState` snapshot or soft-deletes created entities | [`hubspot.connector.ts`](./connectors/hubspot.connector.ts) |
-| **Salesforce** | 28 | Contacts, Accounts, Leads, Opportunities, Custom SObjects | Restores pre-execution SObject snapshot or deletes created records | [`salesforce.connector.ts`](./connectors/salesforce.connector.ts) |
-| **Gmail** | 16 | Messages, Drafts, Labels, Threads, Signatures | Trashes sent messages, restores labels, posts correction replies | [`gmail.connector.ts`](./connectors/gmail.connector.ts) |
-| **Google Drive** | 10 | Files, Folders, Permissions, Revisions | Trashes files, reverts permissions, restores previous revisions | [`gdrive.connector.ts`](./connectors/gdrive.connector.ts) |
-| **Google Sheets**| 8 | Spreadsheets, Sheets, Rows, Cell Ranges | Clears inserted rows, restores overwritten cell ranges | [`gsheets.connector.ts`](./connectors/gsheets.connector.ts) |
-| **Notion** | 9 | Pages, Database Items, Blocks, Comments | Archives pages, deletes blocks, restores properties | [`notion.connector.ts`](./connectors/notion.connector.ts) |
+| Connector | Actions | Reversible / Gated | Supported Primitives | Rollback Mechanism | Implementation |
+| :--- | :---: | :---: | :--- | :--- | :--- |
+| **Salesforce** | 28 | 20 rev / 8 gated | Accounts, Contacts, Leads, Opportunities, Cases, Tasks, SObjects | Restores pre-execution snapshot or deletes created records | [`salesforce.connector.ts`](./connectors/salesforce.connector.ts) |
+| **Slack** | 24 | 23 rev / 1 gated | Messages, Threads, Reactions, Channels, User Groups, Files | Deletes messages, posts thread correction replies, removes reactions | [`slack.connector.ts`](./connectors/slack.connector.ts) |
+| **GitHub** | 20 | 16 rev / 4 gated | Issues, Comments, Pull Requests, Reviews, Releases, Files, Workflows | Closes issues/PRs, deletes comments, reverts file changes, cleans releases | [`github.connector.ts`](./connectors/github.connector.ts) |
+| **HubSpot** | 17 | 12 rev / 5 gated | Contacts, Companies, Deals, Tickets, Engagements, Associations | Restores `beforeState` snapshot or soft-deletes created entities | [`hubspot.connector.ts`](./connectors/hubspot.connector.ts) |
+| **Gmail** | 16 | 13 rev / 3 gated | Messages, Drafts, Labels, Threads | Trashes sent messages, restores labels, posts correction replies | [`gmail.connector.ts`](./connectors/gmail.connector.ts) |
+| **Google Drive** | 10 | 8 rev / 2 gated | Files, Folders, Shared Drives, Permissions, Lifecycle | Trashes files, reverts permissions, un-trashes folders | [`gdrive.connector.ts`](./connectors/gdrive.connector.ts) |
+| **Stripe** | 10 | 5 rev / 5 gated | Invoices, Customers, Refunds, Charges, Coupons, Payment Methods | Deletes draft invoices, refunds charges, manages payment methods | [`stripe.connector.ts`](./connectors/stripe.connector.ts) |
+| **Notion** | 9 | 9 rev / 0 gated | Pages, Database Items, Blocks | Un-archives pages, deletes blocks, restores properties | [`notion.connector.ts`](./connectors/notion.connector.ts) |
+| **Google Sheets**| 8 | 3 rev / 5 gated | Spreadsheets, Sheets, Rows, Cell Value Ranges | Clears inserted rows, restores overwritten cell ranges | [`gsheets.connector.ts`](./connectors/gsheets.connector.ts) |
 
 ---
 
