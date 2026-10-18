@@ -136,11 +136,11 @@ function getSalesforceResourceUrl(
     payload: Record<string, unknown>,
 ): string | null {
     const id = typeof payload.id === 'string' ? payload.id : null;
-    const instanceUrl = process.env.SALESFORCE_INSTANCE_URL;
-    if (!id || !instanceUrl) {
+    if (!id) {
         return null;
     }
-    return `${instanceUrl}/services/data/v58.0/sobjects/${resource}/${id}`;
+    // Path only. The host is the organization's own Salesforce instance, resolved per tenant by the backend.
+    return `/services/data/v58.0/sobjects/${resource}/${id}`;
 }
 
 function getSalesforceCustomObjectResourceUrl(
@@ -148,11 +148,11 @@ function getSalesforceCustomObjectResourceUrl(
     payload: Record<string, unknown>,
 ): string | null {
     const id = typeof payload.id === 'string' ? payload.id : null;
-    const instanceUrl = process.env.SALESFORCE_INSTANCE_URL;
-    if (!id || !instanceUrl) {
+    if (!id) {
         return null;
     }
-    return `${instanceUrl}/services/data/v58.0/sobjects/${objectApiName}/${id}`;
+    // Path only. The host is the organization's own Salesforce instance, resolved per tenant by the backend.
+    return `/services/data/v58.0/sobjects/${objectApiName}/${id}`;
 }
 
 export const salesforceConnector: Connector = {
