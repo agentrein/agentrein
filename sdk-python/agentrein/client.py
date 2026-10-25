@@ -12,6 +12,7 @@ import httpx
 
 from agentrein.connector_retry import retry_connector_call
 from agentrein.errors import (
+    AgentReinDeniedError,
     AgentReinUnavailableError,
     ApprovalRejectedError,
     ApprovalTimeoutError,
@@ -22,6 +23,35 @@ from agentrein.retry import retry_with_backoff
 from agentrein.simulate_response import create_simulated_response
 
 T = TypeVar("T")
+
+
+def is_server_decision(err: Exception) -> bool:
+    """Return True if the error is an explicit server decision (HTTP 401, 403, 409, 429)."""
+    if isinstance(err, httpx.HTTPStatusError):
+        return err.response.status_code in (401, 403, 409, 429)
+    return False
+
+
+def to_server_denied_error(err: Exception) -> AgentReinDeniedError:
+    """Transform an HTTP status error into a typed AgentReinDeniedError parsing RFC 7807 problem details."""
+    if isinstance(err, httpx.HTTPStatusError):
+        status = err.response.status_code
+        error_type = "unknown"
+        detail = str(err)
+        try:
+            body = err.response.json()
+            err_obj = body.get("error") if isinstance(body, dict) and isinstance(body.get("error"), dict) else body
+            if isinstance(err_obj, dict):
+                raw_type = err_obj.get("type", "")
+                if "/" in str(raw_type):
+                    error_type = str(raw_type).rstrip("/").split("/")[-1]
+                elif raw_type:
+                    error_type = str(raw_type)
+                detail = str(err_obj.get("detail") or err_obj.get("title") or err_obj.get("message") or detail)
+        except Exception:
+            pass
+        return AgentReinDeniedError(status=status, error_type=error_type, detail=detail)
+    return AgentReinDeniedError(status=500, error_type="unknown", detail=str(err))
 
 
 @dataclass
@@ -126,7 +156,6 @@ class _WrapProxy:
             method_path in retryable or api_name in retryable
         )
 
-
         # Branch 1 — approval gate
         if needs_approval:
             action_body = {
@@ -151,6 +180,8 @@ class _WrapProxy:
                     return r
                 action_res = retry_with_backoff(_post_action)
             except Exception as error:
+                if is_server_decision(error):
+                    raise to_server_denied_error(error)
                 if self._client._failure_mode == "closed":
                     raise
                 logging.getLogger("agentrein").warning(
@@ -237,6 +268,8 @@ class _WrapProxy:
                     return r
                 retry_with_backoff(_patch_action)
             except Exception as error:
+                if is_server_decision(error):
+                    raise to_server_denied_error(error)
                 if self._client._failure_mode == "closed":
                     raise
                 logging.getLogger("agentrein").warning(
@@ -266,6 +299,8 @@ class _WrapProxy:
                     return r
                 action_res = retry_with_backoff(_post_sandbox_action)
             except Exception as error:
+                if is_server_decision(error):
+                    raise to_server_denied_error(error)
                 if self._client._failure_mode == "closed":
                     raise
                 logging.getLogger("agentrein").warning(
@@ -375,7 +410,9 @@ class AgentRein:
             self._token = str(data["token"])
             self._token_expires_at = time.time() + 24 * 60 * 60
             return self._token
-        except httpx.HTTPError as error:
+        except Exception as error:
+            if is_server_decision(error):
+                raise to_server_denied_error(error)
             raise AgentReinUnavailableError(f"Failed to authenticate: {error}") from error
 
     def _auth_headers(self) -> dict[str, str]:
@@ -387,19 +424,29 @@ class AgentRein:
         if agent_id is None:
             agent_id = str(uuid.uuid4())
 
-        resp = self._http.post(
-            "/sessions",
-            json={"agentId": agent_id, "intent": intent},
-            headers=self._auth_headers(),
-        )
-        resp.raise_for_status()
-        return Session.from_api(resp.json()["data"])
+        try:
+            resp = self._http.post(
+                "/sessions",
+                json={"agentId": agent_id, "intent": intent},
+                headers=self._auth_headers(),
+            )
+            resp.raise_for_status()
+            return Session.from_api(resp.json()["data"])
+        except Exception as error:
+            if is_server_decision(error):
+                raise to_server_denied_error(error)
+            raise AgentReinUnavailableError(f"Failed to create session: {error}") from error
 
     def resume_session(self, session_id: str) -> Session:
         """Retrieve an existing safety session by ID."""
-        resp = self._http.get(f"/sessions/{session_id}", headers=self._auth_headers())
-        resp.raise_for_status()
-        return Session.from_api(resp.json()["data"])
+        try:
+            resp = self._http.get(f"/sessions/{session_id}", headers=self._auth_headers())
+            resp.raise_for_status()
+            return Session.from_api(resp.json()["data"])
+        except Exception as error:
+            if is_server_decision(error):
+                raise to_server_denied_error(error)
+            raise AgentReinUnavailableError(f"Failed to resume session: {error}") from error
 
     def get_session(self, session_id: str) -> Session:
         """Alias for resume_session."""
@@ -414,9 +461,14 @@ class AgentRein:
                 headers=self._auth_headers(),
             )
             resp.raise_for_status()
-        except httpx.HTTPError as error:
+        except Exception as error:
+            if is_server_decision(error):
+                raise to_server_denied_error(error)
             if self._failure_mode == "closed":
                 raise AgentReinUnavailableError(f"Failed to complete session: {error}") from error
+            logging.getLogger("agentrein").warning(
+                "Failed to complete session (%s): %s", session.id, error
+            )
 
     def rollback_session(self, session: Session) -> None:
         """Initiate rollback process for a session."""
@@ -427,9 +479,14 @@ class AgentRein:
                 headers=self._auth_headers(),
             )
             resp.raise_for_status()
-        except httpx.HTTPError as error:
+        except Exception as error:
+            if is_server_decision(error):
+                raise to_server_denied_error(error)
             if self._failure_mode == "closed":
                 raise AgentReinUnavailableError(f"Failed to rollback session: {error}") from error
+            logging.getLogger("agentrein").warning(
+                "Failed to rollback session (%s): %s", session.id, error
+            )
 
     def validate_config(self, connectors: list[str]) -> dict[str, Any]:
         """Validate current config settings for a list of connector IDs."""
@@ -444,7 +501,9 @@ class AgentRein:
             if not isinstance(data, dict):
                 raise ConfigValidationError("Invalid data format returned from config validation")
             return data
-        except httpx.HTTPError as error:
+        except Exception as error:
+            if is_server_decision(error):
+                raise to_server_denied_error(error)
             raise ConfigValidationError(f"Configuration validation failed: {error}") from error
 
     def _log_action(
@@ -479,7 +538,10 @@ class AgentRein:
 
         try:
             retry_with_backoff(make_log_request)
-        except httpx.HTTPError as error:
+        except Exception as error:
+            if is_server_decision(error):
+                raise to_server_denied_error(error)
+
             if status == "FAILED":
                 try:
                     self._http.post(

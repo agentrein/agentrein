@@ -191,6 +191,7 @@ All custom exceptions extend standard `Error`:
 
 ```typescript
 import {
+  AgentReinDeniedError,
   AgentReinUnavailableError,
   ApprovalRejectedError,
   ApprovalTimeoutError,
@@ -200,7 +201,9 @@ import {
 try {
   await safeClient.orders.cancel({ id: 'ord_123' });
 } catch (error) {
-  if (error instanceof ApprovalRejectedError) {
+  if (error instanceof AgentReinDeniedError) {
+    console.error(`Action denied by AgentRein (${error.status} ${error.errorType}): ${error.detail}`);
+  } else if (error instanceof ApprovalRejectedError) {
     console.error(`Approval rejected for action ${error.actionId}: ${error.reason}`);
   } else if (error instanceof ApprovalTimeoutError) {
     console.error(`Approval timed out after ${error.timeoutMs}ms`);

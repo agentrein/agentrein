@@ -55,3 +55,17 @@ class WrapOptionsValidationError(AgentReinError):
 
     def __init__(self, message: str) -> None:
         super().__init__(message)
+
+
+class AgentReinDeniedError(AgentReinError):
+    """Raised when the AgentRein server explicitly denies a request (HTTP 401, 403, 409, 429)."""
+
+    status: int
+    error_type: str
+    detail: str
+
+    def __init__(self, status: int, error_type: str, detail: str) -> None:
+        self.status = status
+        self.error_type = error_type
+        self.detail = detail
+        super().__init__(f"AgentRein denied request ({status} {error_type}): {detail}")

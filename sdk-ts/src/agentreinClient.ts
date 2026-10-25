@@ -1,6 +1,15 @@
 import axios from 'axios';
 import { z } from 'zod';
-import { AgentReinUnavailableError, ApprovalRejectedError, ApprovalTimeoutError, ConfigValidationError, WrapOptionsValidationError } from './errors';
+import {
+    AgentReinDeniedError,
+    AgentReinUnavailableError,
+    ApprovalRejectedError,
+    ApprovalTimeoutError,
+    ConfigValidationError,
+    WrapOptionsValidationError,
+    isServerDecision,
+    toServerDeniedError,
+} from './errors';
 import { retryWithBackoff } from './retry';
 import { createSimulatedResponse } from './simulate-response';
 import { retryConnectorCall, isTransientConnectorError } from './connectorRetry';
@@ -38,7 +47,16 @@ export interface Session {
 }
 
 // Re-export errors for consumer convenience
-export { AgentReinUnavailableError, ApprovalRejectedError, ApprovalTimeoutError, ConfigValidationError, WrapOptionsValidationError };
+export {
+    AgentReinDeniedError,
+    AgentReinUnavailableError,
+    ApprovalRejectedError,
+    ApprovalTimeoutError,
+    ConfigValidationError,
+    WrapOptionsValidationError,
+    isServerDecision,
+    toServerDeniedError,
+};
 
 const WrapOptionsSchema = z.object({
     connector: z.string().min(1),
@@ -49,24 +67,28 @@ const WrapOptionsSchema = z.object({
     retryable: z.array(z.string()).optional(),
 });
 
-// ─── AgentRein Client ─────────────────────────────────────
+// ─── Main Class ───────────────────────────────────────────
 
 export class AgentRein {
-    private readonly serverUrl: string;
     private readonly apiKey: string;
+    private readonly serverUrl: string;
     private readonly failureMode: 'open' | 'closed';
     private token: string | null = null;
     private tokenExpiresAt: number = 0;
+
+    /** In-memory cache of apiName -> captureBeforeState boolean from GET /registry */
     private captureBeforeStateCache: Map<string, boolean> | null = null;
+    /** Flight promise to prevent duplicate concurrent GET /registry calls */
     private registryCachePromise: Promise<Map<string, boolean> | null> | null = null;
 
     constructor(options: AgentReinOptions) {
-        this.serverUrl = options.serverUrl || 'https://api.agentrein.com';
+        if (!options.apiKey) {
+            throw new Error('AgentRein requires an apiKey');
+        }
         this.apiKey = options.apiKey;
+        this.serverUrl = (options.serverUrl ?? 'https://api.agentrein.com').replace(/\/+$/, '');
         this.failureMode = options.failureMode ?? 'open';
     }
-
-    // ── Authentication ──────────────────────────────────
 
     private async getToken(): Promise<string> {
         const BUFFER_MS = 5 * 60 * 1000;
@@ -81,6 +103,9 @@ export class AgentRein {
             this.tokenExpiresAt = Date.now() + 24 * 60 * 60 * 1000;
             return this.token!;
         } catch (err) {
+            if (isServerDecision(err)) {
+                throw toServerDeniedError(err);
+            }
             throw new AgentReinUnavailableError(
                 `Failed to authenticate: ${err instanceof Error ? err.message : String(err)}`
             );
@@ -119,6 +144,9 @@ export class AgentRein {
                 this.captureBeforeStateCache = map;
                 return map;
             } catch (err) {
+                if (isServerDecision(err)) {
+                    throw toServerDeniedError(err);
+                }
                 console.warn(
                     `[AgentRein] Failed to fetch /registry: ${err instanceof Error ? err.message : String(err)}. Defaulting to precapture for all actions.`,
                 );
@@ -160,6 +188,9 @@ export class AgentRein {
                 captureFailed: data?.captureFailed === true,
             };
         } catch (err) {
+            if (isServerDecision(err)) {
+                throw toServerDeniedError(err);
+            }
             console.warn(
                 `[AgentRein] Precapture request failed for ${apiName}: ${err instanceof Error ? err.message : String(err)}. Proceeding with captureFailed=true.`,
             );
@@ -177,25 +208,43 @@ export class AgentRein {
         const agentId = resolved.agentId ?? crypto.randomUUID();
         const intent = resolved.intent;
 
-        const headers = await this.authHeaders();
-        const res = await axios.post(
-            `${this.serverUrl}/sessions`,
-            { agentId, intent },
-            { headers },
-        );
+        try {
+            const headers = await this.authHeaders();
+            const res = await axios.post(
+                `${this.serverUrl}/sessions`,
+                { agentId, intent },
+                { headers },
+            );
 
-        return res.data.data;
+            return res.data.data;
+        } catch (err) {
+            if (isServerDecision(err)) {
+                throw toServerDeniedError(err);
+            }
+            throw new AgentReinUnavailableError(
+                `Failed to create session: ${err instanceof Error ? err.message : String(err)}`
+            );
+        }
     }
 
     // ── resumeSession & getSession ────────────────────────
 
     async resumeSession(sessionId: string): Promise<Session> {
-        const headers = await this.authHeaders();
-        const res = await axios.get(
-            `${this.serverUrl}/sessions/${sessionId}`,
-            { headers },
-        );
-        return res.data.data;
+        try {
+            const headers = await this.authHeaders();
+            const res = await axios.get(
+                `${this.serverUrl}/sessions/${sessionId}`,
+                { headers },
+            );
+            return res.data.data;
+        } catch (err) {
+            if (isServerDecision(err)) {
+                throw toServerDeniedError(err);
+            }
+            throw new AgentReinUnavailableError(
+                `Failed to resume session: ${err instanceof Error ? err.message : String(err)}`
+            );
+        }
     }
 
     async getSession(sessionId: string): Promise<Session> {
@@ -203,36 +252,44 @@ export class AgentRein {
     }
 
     async completeSession(session: Session): Promise<void> {
-        const headers = await this.authHeaders();
         try {
+            const headers = await this.authHeaders();
             await axios.patch(
                 `${this.serverUrl}/sessions/${session.id}`,
                 { status: 'COMPLETED' },
                 { headers }
             );
         } catch (err) {
+            if (isServerDecision(err)) {
+                throw toServerDeniedError(err);
+            }
             if (this.failureMode === 'closed') {
                 throw new AgentReinUnavailableError(
                     `Failed to complete session: ${err instanceof Error ? err.message : String(err)}`
                 );
             }
+            console.warn(`[AgentRein] Failed to complete session: ${err instanceof Error ? err.message : String(err)}`);
         }
     }
 
     async rollbackSession(session: Session): Promise<void> {
-        const headers = await this.authHeaders();
         try {
+            const headers = await this.authHeaders();
             await axios.post(
                 `${this.serverUrl}/sessions/${session.id}/rollback`,
                 {},
                 { headers }
             );
         } catch (err) {
+            if (isServerDecision(err)) {
+                throw toServerDeniedError(err);
+            }
             if (this.failureMode === 'closed') {
                 throw new AgentReinUnavailableError(
                     `Failed to rollback session: ${err instanceof Error ? err.message : String(err)}`
                 );
             }
+            console.warn(`[AgentRein] Failed to rollback session: ${err instanceof Error ? err.message : String(err)}`);
         }
     }
 
@@ -242,8 +299,8 @@ export class AgentRein {
         missing: string[];
         suggestions: string[];
     }> {
-        const headers = await this.authHeaders();
         try {
+            const headers = await this.authHeaders();
             const res = await axios.get(
                 `${this.serverUrl}/settings/credentials/validate`,
                 {
@@ -253,6 +310,9 @@ export class AgentRein {
             );
             return res.data.data;
         } catch (err) {
+            if (isServerDecision(err)) {
+                throw toServerDeniedError(err);
+            }
             throw new ConfigValidationError(
                 `Configuration validation failed: ${err instanceof Error ? err.message : String(err)}`
             );
@@ -293,6 +353,10 @@ export class AgentRein {
                 );
             });
         } catch (err) {
+            if (isServerDecision(err)) {
+                throw toServerDeniedError(err);
+            }
+
             // Fallback: if logging fails and action was FAILED, fire rollback directly
             if (status === 'FAILED') {
                 try {
@@ -422,6 +486,9 @@ export class AgentRein {
                                     );
                                 });
                             } catch (err) {
+                                if (isServerDecision(err)) {
+                                    throw toServerDeniedError(err);
+                                }
                                 if (self.failureMode === 'closed') {
                                     throw err;
                                 } else {
@@ -443,7 +510,7 @@ export class AgentRein {
                                     );
                                     throw execErr;
                                 }
-                                self.logAction(
+                                await self.logAction(
                                     session.id, apiName, operationType, args[0], result, 'SUCCESS',
                                     { precaptureId: precapture.precaptureId, captureFailed: precapture.captureFailed },
                                 );
@@ -486,22 +553,26 @@ export class AgentRein {
                                 throw execErr;
                             }
 
-                            // 5. PATCH existing action to SUCCESS (fire-and-forget)
-                            self.authHeaders().then(h =>
-                                retryWithBackoff(async () => {
+                            // 5. PATCH existing action to SUCCESS
+                            try {
+                                const h = await self.authHeaders();
+                                await retryWithBackoff(async () => {
                                     await axios.patch(
                                         `${self.serverUrl}/sessions/${session.id}/actions/${actionId}`,
                                         { status: 'SUCCESS', response: result },
                                         { headers: h },
                                     );
-                                })
-                            ).catch((err) => {
+                                });
+                            } catch (err) {
+                                if (isServerDecision(err)) {
+                                    throw toServerDeniedError(err);
+                                }
                                 if (self.failureMode === 'closed') {
                                     throw err;
                                 } else {
                                     console.warn(`Failed to update action to SUCCESS: ${err instanceof Error ? err.message : String(err)}`);
                                 }
-                            });
+                            }
 
                             return result;
                         })();
@@ -532,6 +603,9 @@ export class AgentRein {
                                     );
                                 });
                             } catch (err) {
+                                if (isServerDecision(err)) {
+                                    throw toServerDeniedError(err);
+                                }
                                 if (self.failureMode === 'closed') {
                                     throw err;
                                 } else {
@@ -561,7 +635,7 @@ export class AgentRein {
                                     ? { ...result, _agentreinMeta: { retryCount } }
                                     : result;
 
-                                self.logAction(
+                                await self.logAction(
                                     session.id, apiName, operationType, args[0], responseWithMeta, 'SUCCESS',
                                     { precaptureId: precapture.precaptureId, captureFailed: precapture.captureFailed },
                                 );
@@ -582,7 +656,7 @@ export class AgentRein {
                         const precapture = await self.executePrecapture(session.id, apiName, args[0]);
                         try {
                             const result = await innerTarget.apply(thisArg, args);
-                            self.logAction(
+                            await self.logAction(
                                 session.id, apiName, operationType, args[0], result, 'SUCCESS',
                                 { precaptureId: precapture.precaptureId, captureFailed: precapture.captureFailed },
                             );
