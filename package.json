@@ -6,6 +6,9 @@
     "types",
     "connectors"
   ],
+  "scripts": {
+    "test": "npm test --workspace agentrein"
+  },
   "devDependencies": {
     "typescript": "^5.9.3"
   }

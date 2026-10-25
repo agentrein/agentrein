@@ -157,7 +157,10 @@ export class AgentRein {
         return this.registryCachePromise;
     }
 
-    private async needsPrecapture(apiName: string): Promise<boolean> {
+    private async needsPrecapture(apiName: string, operationType: string = 'CREATE'): Promise<boolean> {
+        if (operationType === 'CREATE') {
+            return false;
+        }
         const cache = await this.getCaptureBeforeStateCache();
         if (cache === null) {
             return true;
@@ -169,8 +172,9 @@ export class AgentRein {
         sessionId: string,
         apiName: string,
         payload: unknown,
+        operationType: string = 'CREATE',
     ): Promise<{ precaptureId: string | null; captureFailed: boolean }> {
-        const shouldCapture = await this.needsPrecapture(apiName);
+        const shouldCapture = await this.needsPrecapture(apiName, operationType);
         if (!shouldCapture) {
             return { precaptureId: null, captureFailed: false };
         }
@@ -463,7 +467,7 @@ export class AgentRein {
 
                     if (needsApproval) {
                         return (async () => {
-                            const precapture = await self.executePrecapture(session.id, apiName, args[0]);
+                            const precapture = await self.executePrecapture(session.id, apiName, args[0], operationType);
                             const headers = await self.authHeaders();
 
                             // 1. Log as PENDING_APPROVAL — await this, not fire-and-forget
@@ -583,7 +587,7 @@ export class AgentRein {
 
                     if (isSessionSandbox) {
                         return (async () => {
-                            const precapture = await self.executePrecapture(session.id, apiName, args[0]);
+                            const precapture = await self.executePrecapture(session.id, apiName, args[0], operationType);
                             let actionRes: any;
                             try {
                                 const headers = await self.authHeaders();
@@ -625,7 +629,7 @@ export class AgentRein {
 
                     if (isRetryable) {
                         return (async () => {
-                            const precapture = await self.executePrecapture(session.id, apiName, args[0]);
+                            const precapture = await self.executePrecapture(session.id, apiName, args[0], operationType);
                             try {
                                 const { result, retryCount } = await retryConnectorCall(async (idempotencyKey) => {
                                     return await innerTarget.apply(thisArg, args);
@@ -653,7 +657,7 @@ export class AgentRein {
                     }
 
                     return (async () => {
-                        const precapture = await self.executePrecapture(session.id, apiName, args[0]);
+                        const precapture = await self.executePrecapture(session.id, apiName, args[0], operationType);
                         try {
                             const result = await innerTarget.apply(thisArg, args);
                             await self.logAction(
