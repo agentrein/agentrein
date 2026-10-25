@@ -44,6 +44,9 @@ jobs:
       - name: Check types mirror
         run: bash scripts/check-types-mirror.sh
 
+      - name: Check SDK Route Contract
+        run: npm run guard:routes
+
       - name: TypeScript version
         run: npx tsc --version
 
