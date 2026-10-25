@@ -234,3 +234,22 @@ def test_sandbox_server_decision_raises(
         wrapped.query_data(query="SELECT 1")
 
     assert exc_info.value.status == status_code
+
+
+def test_new_session_agent_paused_raises_denied_error(monkeypatch: pytest.MonkeyPatch) -> None:
+    client = AgentRein(api_key="ar_test_key", failure_mode="open")
+    monkeypatch.setattr(client, "_get_token", lambda: "mock_token")
+
+    def mock_post(url: str, *args, **kwargs):
+        if url.endswith("/sessions"):
+            raise make_http_error(403, "agent-paused", 'Agent "paused-agent" is paused')
+        return httpx.Response(status_code=200, request=httpx.Request("POST", url), json={"data": {}})
+
+    monkeypatch.setattr(client._http, "post", mock_post)
+
+    with pytest.raises(AgentReinDeniedError) as exc_info:
+        client.new_session(agent_id="paused-agent")
+
+    assert exc_info.value.status == 403
+    assert exc_info.value.error_type == "agent-paused"
+    assert exc_info.value.detail == 'Agent "paused-agent" is paused'

@@ -237,5 +237,29 @@ describe('SDK failureMode Option A & Server Decisions', () => {
             expect(consoleSpy).toHaveBeenCalledTimes(2);
             consoleSpy.mockRestore();
         });
+
+        it('newSession throws AgentReinDeniedError when agent is paused (HTTP 403 agent-paused)', async () => {
+            const client = new AgentRein({ apiKey: 'ar_test_key', failureMode: 'open' });
+            vi.mocked(axios.post).mockImplementation(async (url: string) => {
+                if (url.includes('/auth/token')) {
+                    return { data: { data: { token: 'mock-token' } } } as any;
+                }
+                if (url.endsWith('/sessions')) {
+                    throw makeAxiosError(403, 'agent-paused', 'Agent "test-agent" is paused');
+                }
+                return { data: { data: {} } } as any;
+            });
+
+            await expect(client.newSession({ agentId: 'test-agent' })).rejects.toThrow(AgentReinDeniedError);
+            try {
+                await client.newSession({ agentId: 'test-agent' });
+            } catch (err) {
+                expect(err).toBeInstanceOf(AgentReinDeniedError);
+                const denied = err as AgentReinDeniedError;
+                expect(denied.status).toBe(403);
+                expect(denied.errorType).toBe('agent-paused');
+                expect(denied.detail).toBe('Agent "test-agent" is paused');
+            }
+        });
     });
 });
