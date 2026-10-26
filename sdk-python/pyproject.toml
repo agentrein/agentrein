@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "agentrein"
-version = "0.1.0"
+version = "0.1.1"
 description = "Automatic rollback for AI agents. Python SDK for AgentRein."
 readme = "README.md"
 requires-python = ">=3.9"

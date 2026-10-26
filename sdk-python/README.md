@@ -88,6 +88,8 @@ try:
     # Mark session as successfully completed
     rein.complete_session(session)
 
+except AgentReinDeniedError as err:
+    print(f"Action denied by AgentRein ({err.status} {err.error_type}): {err.detail}")
 except ApprovalRejectedError as err:
     print(f"Action rejected by reviewer: {err.reason}")
     rein.rollback_session(session)
@@ -194,6 +196,7 @@ All custom exceptions derive from `AgentReinError`:
 ```python
 from agentrein.errors import (
     AgentReinError,
+    AgentReinDeniedError,
     AgentReinUnavailableError,
     ApprovalRejectedError,
     ApprovalTimeoutError,
@@ -203,6 +206,8 @@ from agentrein.errors import (
 
 try:
     safe_client.execute()
+except AgentReinDeniedError as err:
+    print(f"Action denied by AgentRein ({err.status} {err.error_type}): {err.detail}")
 except ApprovalRejectedError as err:
     print(f"Action {err.action_id} rejected: {err.reason}")
 except ApprovalTimeoutError as err:

@@ -12,6 +12,7 @@ import httpx
 
 from agentrein.connector_retry import retry_connector_call
 from agentrein.errors import (
+    AgentReinDeniedError,
     AgentReinUnavailableError,
     ApprovalRejectedError,
     ApprovalTimeoutError,
@@ -22,6 +23,35 @@ from agentrein.retry import retry_with_backoff
 from agentrein.simulate_response import create_simulated_response
 
 T = TypeVar("T")
+
+
+def is_server_decision(err: Exception) -> bool:
+    """Return True if the error is an explicit server decision (HTTP 401, 403, 409, 429)."""
+    if isinstance(err, httpx.HTTPStatusError):
+        return err.response.status_code in (401, 403, 409, 429)
+    return False
+
+
+def to_server_denied_error(err: Exception) -> AgentReinDeniedError:
+    """Transform an HTTP status error into a typed AgentReinDeniedError parsing RFC 7807 problem details."""
+    if isinstance(err, httpx.HTTPStatusError):
+        status = err.response.status_code
+        error_type = "unknown"
+        detail = str(err)
+        try:
+            body = err.response.json()
+            err_obj = body.get("error") if isinstance(body, dict) and isinstance(body.get("error"), dict) else body
+            if isinstance(err_obj, dict):
+                raw_type = err_obj.get("type", "")
+                if "/" in str(raw_type):
+                    error_type = str(raw_type).rstrip("/").split("/")[-1]
+                elif raw_type:
+                    error_type = str(raw_type)
+                detail = str(err_obj.get("detail") or err_obj.get("title") or err_obj.get("message") or detail)
+        except Exception:
+            pass
+        return AgentReinDeniedError(status=status, error_type=error_type, detail=detail)
+    return AgentReinDeniedError(status=500, error_type="unknown", detail=str(err))
 
 
 @dataclass
@@ -107,7 +137,7 @@ class _WrapProxy:
         )
 
     def __call__(self, *args: Any, **kwargs: Any) -> Any:
-        api_name = f"{self._options.connector}.{'.'.join(self._path)}"
+        api_name = f"{self._options.connector}.{'.'.join(self._path)}" if self._path else self._options.connector
         last_seg = self._path[-1].lower() if self._path else ""
         operation_type = _OP_MAP.get(last_seg, "CREATE")
         method_path = ".".join(self._path)
@@ -117,6 +147,16 @@ class _WrapProxy:
         # In Python, connector SDKs typically use kwargs, not a single positional dict.
         payload = kwargs if kwargs else (args[0] if args else {})
 
+        precapture_id, capture_failed = self._client._execute_precapture(
+            self._session.id, api_name, payload, operation_type
+        )
+
+        precapture_kwargs: dict[str, Any] = {}
+        if precapture_id is not None:
+            precapture_kwargs["precapture_id"] = precapture_id
+        if capture_failed:
+            precapture_kwargs["capture_failed"] = True
+
         requires_approval = self._options.requires_approval
         needs_approval = requires_approval is not None and (
             method_path in requires_approval or api_name in requires_approval
@@ -125,7 +165,6 @@ class _WrapProxy:
         is_retryable = retryable is not None and (
             method_path in retryable or api_name in retryable
         )
-
 
         # Branch 1 — approval gate
         if needs_approval:
@@ -138,6 +177,10 @@ class _WrapProxy:
             }
             if self._options.timeout_ms is not None:
                 action_body["timeoutMs"] = self._options.timeout_ms
+            if precapture_id is not None:
+                action_body["precaptureId"] = precapture_id
+            if capture_failed:
+                action_body["captureFailed"] = True
 
             action_res = None
             try:
@@ -151,6 +194,8 @@ class _WrapProxy:
                     return r
                 action_res = retry_with_backoff(_post_action)
             except Exception as error:
+                if is_server_decision(error):
+                    raise to_server_denied_error(error)
                 if self._client._failure_mode == "closed":
                     raise
                 logging.getLogger("agentrein").warning(
@@ -169,6 +214,7 @@ class _WrapProxy:
                         response=result,
                         status="SUCCESS",
                         timeout_ms=self._options.timeout_ms,
+                        **precapture_kwargs,
                     )
                     return result
                 except Exception:
@@ -180,6 +226,7 @@ class _WrapProxy:
                         response={},
                         status="FAILED",
                         timeout_ms=self._options.timeout_ms,
+                        **precapture_kwargs,
                     )
                     raise
 
@@ -209,6 +256,7 @@ class _WrapProxy:
                     response={},
                     status="FAILED",
                     timeout_ms=self._options.timeout_ms,
+                    **precapture_kwargs,
                 )
                 raise
 
@@ -223,6 +271,7 @@ class _WrapProxy:
                     response={},
                     status="FAILED",
                     timeout_ms=self._options.timeout_ms,
+                    **precapture_kwargs,
                 )
                 raise
 
@@ -237,6 +286,8 @@ class _WrapProxy:
                     return r
                 retry_with_backoff(_patch_action)
             except Exception as error:
+                if is_server_decision(error):
+                    raise to_server_denied_error(error)
                 if self._client._failure_mode == "closed":
                     raise
                 logging.getLogger("agentrein").warning(
@@ -254,6 +305,11 @@ class _WrapProxy:
                 "response": {},
                 "status": "SUCCESS",
             }
+            if precapture_id is not None:
+                action_body["precaptureId"] = precapture_id
+            if capture_failed:
+                action_body["captureFailed"] = True
+
             action_res = None
             try:
                 def _post_sandbox_action() -> httpx.Response:
@@ -266,6 +322,8 @@ class _WrapProxy:
                     return r
                 action_res = retry_with_backoff(_post_sandbox_action)
             except Exception as error:
+                if is_server_decision(error):
+                    raise to_server_denied_error(error)
                 if self._client._failure_mode == "closed":
                     raise
                 logging.getLogger("agentrein").warning(
@@ -296,6 +354,7 @@ class _WrapProxy:
                     response={},
                     status="FAILED",
                     timeout_ms=self._options.timeout_ms,
+                    **precapture_kwargs,
                 )
                 raise
 
@@ -316,6 +375,7 @@ class _WrapProxy:
                 response=response_with_meta,
                 status="SUCCESS",
                 timeout_ms=self._options.timeout_ms,
+                **precapture_kwargs,
             )
             return result
 
@@ -332,6 +392,7 @@ class _WrapProxy:
                     response={},
                     status="FAILED",
                     timeout_ms=self._options.timeout_ms,
+                    **precapture_kwargs,
                 )
                 raise
 
@@ -343,6 +404,7 @@ class _WrapProxy:
                 response=result,
                 status="SUCCESS",
                 timeout_ms=self._options.timeout_ms,
+                **precapture_kwargs,
             )
             return result
 
@@ -362,6 +424,7 @@ class AgentRein:
         self._token: str | None = None
         self._token_expires_at: float = 0.0
         self._http = httpx.Client(base_url=self._server_url, timeout=30.0)
+        self._registry_cache: dict[str, bool] | None = None
 
     def _get_token(self) -> str:
         """Retrieve a cached authentication token or fetch a new one if expired."""
@@ -375,31 +438,106 @@ class AgentRein:
             self._token = str(data["token"])
             self._token_expires_at = time.time() + 24 * 60 * 60
             return self._token
-        except httpx.HTTPError as error:
+        except Exception as error:
+            if is_server_decision(error):
+                raise to_server_denied_error(error)
             raise AgentReinUnavailableError(f"Failed to authenticate: {error}") from error
 
     def _auth_headers(self) -> dict[str, str]:
         """Generate headers containing the bearer authentication token."""
         return {"Authorization": f"Bearer {self._get_token()}"}
 
+    def _get_capture_before_state_cache(self) -> dict[str, bool] | None:
+        """Fetch and cache registry action definitions for before-state precapture decisions."""
+        if self._registry_cache is not None:
+            return self._registry_cache
+
+        try:
+            resp = self._http.get("/registry", headers=self._auth_headers())
+            resp.raise_for_status()
+            data = resp.json()
+            actions = data.get("data") if isinstance(data, dict) and "data" in data else data
+            cache: dict[str, bool] = {}
+            if isinstance(actions, list):
+                for act in actions:
+                    if isinstance(act, dict) and "apiName" in act and isinstance(act.get("captureBeforeState"), bool):
+                        cache[act["apiName"]] = act["captureBeforeState"]
+            self._registry_cache = cache
+            return cache
+        except Exception as err:
+            if is_server_decision(err):
+                raise to_server_denied_error(err)
+            logging.getLogger("agentrein").warning(
+                "Failed to fetch /registry: %s. Defaulting to precapture for all actions.", err
+            )
+            return None
+
+    def _needs_precapture(self, api_name: str, operation_type: str = "CREATE") -> bool:
+        """Check whether the given action requires pre-mutation snapshot capture."""
+        if operation_type == "CREATE":
+            return False
+        cache = self._get_capture_before_state_cache()
+        if cache is None:
+            return True
+        return cache.get(api_name, True)
+
+    def _execute_precapture(
+        self, session_id: str, api_name: str, payload: Any, operation_type: str = "CREATE"
+    ) -> tuple[str | None, bool]:
+        """Request backend to capture pre-mutation state before action execution."""
+        if not self._needs_precapture(api_name, operation_type):
+            return None, False
+
+        try:
+            resp = self._http.post(
+                f"/sessions/{session_id}/actions/precapture",
+                json={"apiName": api_name, "payload": payload if payload is not None else {}},
+                headers=self._auth_headers(),
+            )
+            resp.raise_for_status()
+            data = resp.json()
+            res_data = data.get("data", data) if isinstance(data, dict) else {}
+            precapture_id = res_data.get("precaptureId") if isinstance(res_data, dict) else None
+            capture_failed = res_data.get("captureFailed", False) if isinstance(res_data, dict) else False
+            return precapture_id, capture_failed
+        except Exception as err:
+            if is_server_decision(err):
+                raise to_server_denied_error(err)
+            logging.getLogger("agentrein").warning(
+                "Precapture request failed for %s: %s. Proceeding with captureFailed=true.",
+                api_name,
+                err,
+            )
+            return None, True
+
     def new_session(self, agent_id: str | None = None, intent: str | None = None) -> Session:
         """Create a new safety session for an agent and intent."""
         if agent_id is None:
             agent_id = str(uuid.uuid4())
 
-        resp = self._http.post(
-            "/sessions",
-            json={"agentId": agent_id, "intent": intent},
-            headers=self._auth_headers(),
-        )
-        resp.raise_for_status()
-        return Session.from_api(resp.json()["data"])
+        try:
+            resp = self._http.post(
+                "/sessions",
+                json={"agentId": agent_id, "intent": intent},
+                headers=self._auth_headers(),
+            )
+            resp.raise_for_status()
+            return Session.from_api(resp.json()["data"])
+        except Exception as error:
+            if is_server_decision(error):
+                raise to_server_denied_error(error)
+            raise AgentReinUnavailableError(f"Failed to create session: {error}") from error
 
     def resume_session(self, session_id: str) -> Session:
         """Retrieve an existing safety session by ID."""
-        resp = self._http.get(f"/sessions/{session_id}", headers=self._auth_headers())
-        resp.raise_for_status()
-        return Session.from_api(resp.json()["data"])
+        try:
+            resp = self._http.get(f"/sessions/{session_id}", headers=self._auth_headers())
+            resp.raise_for_status()
+            return Session.from_api(resp.json()["data"])
+        except Exception as error:
+            if is_server_decision(error):
+                raise to_server_denied_error(error)
+            raise AgentReinUnavailableError(f"Failed to resume session: {error}") from error
 
     def get_session(self, session_id: str) -> Session:
         """Alias for resume_session."""
@@ -414,9 +552,14 @@ class AgentRein:
                 headers=self._auth_headers(),
             )
             resp.raise_for_status()
-        except httpx.HTTPError as error:
+        except Exception as error:
+            if is_server_decision(error):
+                raise to_server_denied_error(error)
             if self._failure_mode == "closed":
                 raise AgentReinUnavailableError(f"Failed to complete session: {error}") from error
+            logging.getLogger("agentrein").warning(
+                "Failed to complete session (%s): %s", session.id, error
+            )
 
     def rollback_session(self, session: Session) -> None:
         """Initiate rollback process for a session."""
@@ -427,9 +570,14 @@ class AgentRein:
                 headers=self._auth_headers(),
             )
             resp.raise_for_status()
-        except httpx.HTTPError as error:
+        except Exception as error:
+            if is_server_decision(error):
+                raise to_server_denied_error(error)
             if self._failure_mode == "closed":
                 raise AgentReinUnavailableError(f"Failed to rollback session: {error}") from error
+            logging.getLogger("agentrein").warning(
+                "Failed to rollback session (%s): %s", session.id, error
+            )
 
     def validate_config(self, connectors: list[str]) -> dict[str, Any]:
         """Validate current config settings for a list of connector IDs."""
@@ -444,7 +592,9 @@ class AgentRein:
             if not isinstance(data, dict):
                 raise ConfigValidationError("Invalid data format returned from config validation")
             return data
-        except httpx.HTTPError as error:
+        except Exception as error:
+            if is_server_decision(error):
+                raise to_server_denied_error(error)
             raise ConfigValidationError(f"Configuration validation failed: {error}") from error
 
     def _log_action(
@@ -456,9 +606,11 @@ class AgentRein:
         response: Any,
         status: Literal["SUCCESS", "FAILED", "PENDING_APPROVAL"],
         timeout_ms: int | None = None,
+        precapture_id: str | None = None,
+        capture_failed: bool = False,
     ) -> None:
         """Log an action call against the active session, retrying on transient errors."""
-        body = {
+        body: dict[str, Any] = {
             "apiName": api_name,
             "operationType": operation_type,
             "payload": payload if payload is not None else {},
@@ -467,6 +619,10 @@ class AgentRein:
         }
         if timeout_ms is not None:
             body["timeoutMs"] = timeout_ms
+        if precapture_id is not None:
+            body["precaptureId"] = precapture_id
+        if capture_failed:
+            body["captureFailed"] = True
 
         def make_log_request() -> httpx.Response:
             resp = self._http.post(
@@ -479,7 +635,10 @@ class AgentRein:
 
         try:
             retry_with_backoff(make_log_request)
-        except httpx.HTTPError as error:
+        except Exception as error:
+            if is_server_decision(error):
+                raise to_server_denied_error(error)
+
             if status == "FAILED":
                 try:
                     self._http.post(

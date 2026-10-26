@@ -6,6 +6,10 @@
     "types",
     "connectors"
   ],
+  "scripts": {
+    "test": "npm test --workspace agentrein",
+    "guard:routes": "node scripts/guard-sdk-routes.js"
+  },
   "devDependencies": {
     "typescript": "^5.9.3"
   }

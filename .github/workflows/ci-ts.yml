@@ -44,6 +44,9 @@ jobs:
       - name: Check types mirror
         run: bash scripts/check-types-mirror.sh
 
+      - name: Check SDK Route Contract
+        run: npm run guard:routes
+
       - name: TypeScript version
         run: npx tsc --version
 
@@ -64,3 +67,6 @@ jobs:
 
       - name: Build sdk-ts
         run: npm run build --workspace agentrein
+
+      - name: Run sdk-ts tests
+        run: npm test --workspace agentrein
