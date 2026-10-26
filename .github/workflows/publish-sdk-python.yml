@@ -1,10 +1,11 @@
-# This workflow only runs on version tags (sdk-python-v*), uses PyPI Trusted Publishing
+# This workflow runs on version tags (sdk-python-v*) or manual dispatch, uses PyPI Trusted Publishing
 # (OIDC-based, requiring no stored credentials or API tokens), and expects
 # the "pypi" GitHub environment to already exist in the repository settings.
 
 name: Publish Python Package
 
 on:
+  workflow_dispatch:
   push:
     tags:
       - "sdk-python-v*"
@@ -29,6 +30,18 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+
+      - name: Verify tag version matches pyproject.toml
+        run: |
+          if [[ "${GITHUB_REF_NAME}" == sdk-python-v* ]]; then
+            TAG_VERSION="${GITHUB_REF_NAME#sdk-python-v}"
+            PKG_VERSION=$(python -c "import tomllib; from pathlib import Path; print(tomllib.loads(Path('pyproject.toml').read_text())['project']['version'])")
+            if [ "$TAG_VERSION" != "$PKG_VERSION" ]; then
+              echo "Error: Tag version ($TAG_VERSION) does not match pyproject.toml version ($PKG_VERSION)" >&2
+              exit 1
+            fi
+            echo "Tag version ($TAG_VERSION) matches pyproject.toml version ($PKG_VERSION)"
+          fi
 
       - name: Install build tool
         run: |

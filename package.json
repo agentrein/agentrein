@@ -8,7 +8,8 @@
   ],
   "scripts": {
     "test": "npm test --workspace agentrein",
-    "guard:routes": "node scripts/guard-sdk-routes.js"
+    "guard:routes": "node scripts/guard-sdk-routes.js",
+    "release": "node scripts/release.js"
   },
   "devDependencies": {
     "typescript": "^5.9.3"
